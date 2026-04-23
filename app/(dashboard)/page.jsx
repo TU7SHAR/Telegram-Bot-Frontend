@@ -25,7 +25,7 @@ export default function DashboardHome() {
   };
 
   const generateToken = async () => {
-    console.log("1. Generate button clicked"); // Check if this shows up
+    console.log("1. Generate button clicked");
 
     try {
       const {

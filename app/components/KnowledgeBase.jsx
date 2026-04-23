@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-// Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -17,17 +16,15 @@ export default function KnowledgeBaseTable() {
 
   const fetchFiles = async () => {
     try {
-      // 1. Get the current logged-in Google User
       const { data: authData } = await supabase.auth.getUser();
       const user = authData?.user;
 
-      if (!user) return; // Exit if not logged in
+      if (!user) return;
 
-      // 2. Fetch only the files where created_by matches the user.id
       const { data, error } = await supabase
         .from("ingested_files")
         .select("*")
-        .eq("created_by", user.id) // <--- THIS PREVENTS THE LEAK
+        .eq("created_by", user.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
