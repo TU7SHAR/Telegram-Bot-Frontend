@@ -15,15 +15,29 @@ export default function DashboardHome() {
 
   const fetchTokens = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("invite_tokens")
-      .select("*")
-      .order("created_at", { ascending: false });
+    try {
+      const { data: authData, error: authError } =
+        await supabase.auth.getUser();
+      const user = authData?.user;
 
-    if (!error) setTokens(data);
-    setLoading(false);
+      if (authError || !user) {
+        console.error("Auth error:", authError);
+        setLoading(false);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("invite_tokens")
+        .select("*")
+        .eq("created_by", user.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setTokens(data);
+    } catch (error) {
+      console.error("Error fetching tokens:", error.message);
+    } finally {
+      setLoading(false);
+    }
   };
-
   const generateToken = async () => {
     console.log("1. Generate button clicked");
 
