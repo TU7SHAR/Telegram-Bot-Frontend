@@ -41,9 +41,9 @@ export default function DashboardHome() {
       }
 
       const newTokenString = `token_${Math.random().toString(36).substr(2, 9)}`;
-      const link = `https://t.me/DrishRag_Bot?start=${newTokenString}`;
-      // const link = `https://t.me/devRagbot?start=${newTokenString}`;
-
+      const botUsername =
+        process.env.NODE_ENV === "development" ? "devRagbot" : "DrishRag_Bot";
+      const link = `https://t.me/${botUsername}?start=${newTokenString}`;
       console.log("3. Attempting DB Insert for:", link);
 
       const { data, error } = await supabase

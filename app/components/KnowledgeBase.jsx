@@ -17,9 +17,17 @@ export default function KnowledgeBaseTable() {
 
   const fetchFiles = async () => {
     try {
+      // 1. Get the current logged-in Google User
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData?.user;
+
+      if (!user) return; // Exit if not logged in
+
+      // 2. Fetch only the files where created_by matches the user.id
       const { data, error } = await supabase
         .from("ingested_files")
         .select("*")
+        .eq("created_by", user.id) // <--- THIS PREVENTS THE LEAK
         .order("created_at", { ascending: false });
 
       if (error) throw error;
