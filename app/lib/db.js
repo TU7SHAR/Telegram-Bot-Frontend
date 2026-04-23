@@ -16,7 +16,9 @@ export async function ensureAdminToken(userId) {
     if (existing) return;
 
     const adminTokenString = `admin_${Math.random().toString(36).substr(2, 9)}`;
-    const link = `https://t.me/devRagbot?start=${adminTokenString}`;
+    const botUsername =
+      process.env.NODE_ENV === "development" ? "devRagbot" : "DrishRag_Bot";
+    const link = `https://t.me/${botUsername}?start=${adminTokenString}`;
 
     await db.insert(inviteTokens).values({
       tokenString: link,

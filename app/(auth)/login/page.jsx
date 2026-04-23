@@ -61,8 +61,6 @@ export default function Login() {
       setMessage({ type: "error", text: error.message });
       setLoading(false);
     } else {
-      // NOTE: onAuthStateChange above will handle the redirect and token generation
-      // This ensures we don't have duplicate redirect logic
       console.log("Email login successful, waiting for auth state change...");
     }
   };
