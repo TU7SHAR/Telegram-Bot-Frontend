@@ -41,8 +41,10 @@ export default function DashboardHome() {
       }
 
       const newTokenString = `token_${Math.random().toString(36).substr(2, 9)}`;
-      const botUsername =
-        process.env.NODE_ENV === "development" ? "devRagbot" : "DrishRag_Bot";
+      const isLocalhost =
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1";
+      const botUsername = isLocalhost ? "devRagbot" : "DrishRag_Bot";
       const link = `https://t.me/${botUsername}?start=${newTokenString}`;
       console.log("3. Attempting DB Insert for:", link);
 
