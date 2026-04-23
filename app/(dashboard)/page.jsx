@@ -15,31 +15,17 @@ export default function DashboardHome() {
 
   const fetchTokens = async () => {
     setLoading(true);
-    try {
-      const { data: authData, error: authError } =
-        await supabase.auth.getUser();
-      const user = authData?.user;
+    const { data, error } = await supabase
+      .from("invite_tokens")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-      if (authError || !user) {
-        console.error("Auth error:", authError);
-        setLoading(false);
-        return;
-      }
-      const { data, error } = await supabase
-        .from("invite_tokens")
-        .select("*")
-        .eq("created_by", user.id)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      setTokens(data);
-    } catch (error) {
-      console.error("Error fetching tokens:", error.message);
-    } finally {
-      setLoading(false);
-    }
+    if (!error) setTokens(data);
+    setLoading(false);
   };
+
   const generateToken = async () => {
-    console.log("1. Generate button clicked");
+    console.log("1. Generate button clicked"); // Check if this shows up
 
     try {
       const {
@@ -55,11 +41,8 @@ export default function DashboardHome() {
       }
 
       const newTokenString = `token_${Math.random().toString(36).substr(2, 9)}`;
-      const isLocalhost =
-        window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1";
-      const botUsername = isLocalhost ? "devRagbot" : "DrishRag_Bot";
-      const link = `https://t.me/${botUsername}?start=${newTokenString}`;
+      const link = `https://t.me/DrishRag_Bot?start=${newTokenString}`;
+
       console.log("3. Attempting DB Insert for:", link);
 
       const { data, error } = await supabase
