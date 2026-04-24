@@ -26,13 +26,51 @@ export default function Settings() {
     maintenanceMode: false,
   });
 
-  const handleSave = () => {
+  // Inside settings/page.jsx, update handleSave:
+
+  const handleSave = async () => {
     setIsSaving(true);
-    // Simulate database save
-    setTimeout(() => {
-      setIsSaving(false);
-      alert("Preferences saved successfully!");
-    }, 800);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      // Logic: If strict mode is ON, temp is 0.2. If OFF, temp is 0.8
+      const finalTemp = settings.strictKnowledge ? 0.2 : 0.8;
+
+      // Check if settings exist for this user, otherwise insert
+      const { data: existing } = await supabase
+        .from("bot_settings")
+        .select("id")
+        .eq("created_by", user.id)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from("bot_settings")
+          .update({
+            temperature: finalTemp,
+            strict_knowledge_mode: settings.strictKnowledge,
+            maintenance_mode: settings.maintenanceMode,
+            updated_at: new Date(),
+          })
+          .eq("id", existing.id);
+      } else {
+        await supabase.from("bot_settings").insert([
+          {
+            created_by: user.id,
+            temperature: finalTemp,
+            strict_knowledge_mode: settings.strictKnowledge,
+            maintenance_mode: settings.maintenanceMode,
+          },
+        ]);
+      }
+
+      alert("Preferences saved and bot updated live!");
+    } catch (err) {
+      alert("Error saving settings.");
+    }
+    setIsSaving(false);
   };
 
   return (
