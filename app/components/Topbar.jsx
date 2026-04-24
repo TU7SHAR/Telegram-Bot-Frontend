@@ -7,10 +7,11 @@ import {
   Settings,
   ChevronDown,
   ShieldCheck,
-  Mail,
+  CreditCard,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import gsap from "gsap";
+import Link from "next/link";
 
 export default function ProfileHeader() {
   const [isOpen, setIsOpen] = useState(false);
@@ -45,26 +46,28 @@ export default function ProfileHeader() {
     }
   };
 
+  // Safely extract the user's actual name from Google Auth metadata
+  const displayName =
+    user?.user_metadata?.full_name || user?.user_metadata?.name || "Admin";
+  const initial = displayName.charAt(0).toUpperCase();
+
   return (
     <div className="relative flex items-center justify-end w-full py-4 px-8 border-b border-zinc-100 bg-white">
       <div className="flex items-center gap-4">
-        <div className="text-right hidden sm:block">
-          <p className="text-sm font-bold text-black leading-tight">
-            {user?.email?.split("@")[0] || "Admin"}
-          </p>
-          <p className="text-[10px] uppercase tracking-widest text-zinc-400 font-medium">
-            Pro Plan
-          </p>
-        </div>
-
         <div className="relative">
           <button
             onClick={toggleDropdown}
-            className="flex items-center gap-2 p-1 rounded-full border border-zinc-200 hover:border-black transition-all bg-zinc-50"
+            className="flex items-center gap-2 p-1 pr-3 rounded-full border border-zinc-200 hover:border-black transition-all bg-zinc-50"
           >
-            <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-white text-xs font-bold uppercase">
-              {user?.email?.charAt(0) || "A"}
+            <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-white text-xs font-bold uppercase shrink-0">
+              {initial}
             </div>
+
+            {/* Added Display Name Here */}
+            <span className="text-sm font-semibold text-black truncate max-w-[120px]">
+              {displayName}
+            </span>
+
             <ChevronDown
               size={14}
               className={`text-zinc-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
@@ -78,17 +81,22 @@ export default function ProfileHeader() {
             >
               <div className="p-4 border-b border-zinc-100 bg-zinc-50/50">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-black flex items-center justify-center text-white font-bold">
-                    {user?.email?.charAt(0).toUpperCase()}
+                  <div className="w-10 h-10 rounded-lg bg-black flex items-center justify-center text-white font-bold shrink-0">
+                    {initial}
                   </div>
                   <div className="overflow-hidden">
                     <p className="text-sm font-bold text-black truncate">
-                      {user?.email}
+                      {displayName}
                     </p>
-                    <div className="flex items-center gap-1 text-zinc-400">
-                      <ShieldCheck size={12} className="text-zinc-500" />
-                      <span className="text-[10px] font-medium uppercase tracking-tighter">
-                        Verified Admin
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-1 text-zinc-500">
+                        <ShieldCheck size={12} />
+                        <span className="text-[10px] font-medium uppercase tracking-tighter">
+                          Verified
+                        </span>
+                      </div>
+                      <span className="text-[10px] uppercase tracking-widest font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                        Pro Plan
                       </span>
                     </div>
                   </div>
@@ -96,14 +104,30 @@ export default function ProfileHeader() {
               </div>
 
               <div className="p-2">
-                <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-600 hover:text-black hover:bg-zinc-50 rounded-lg transition-all">
+                <Link
+                  href="/account"
+                  onClick={() => setIsOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-600 hover:text-black hover:bg-zinc-50 rounded-lg transition-all"
+                >
                   <User size={16} />
                   Account Settings
-                </button>
-                <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-600 hover:text-black hover:bg-zinc-50 rounded-lg transition-all">
+                </Link>
+                <Link
+                  href="/billing"
+                  onClick={() => setIsOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-600 hover:text-black hover:bg-zinc-50 rounded-lg transition-all"
+                >
+                  <CreditCard size={16} />
+                  Billing & Usage
+                </Link>
+                <Link
+                  href="/settings"
+                  onClick={() => setIsOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-600 hover:text-black hover:bg-zinc-50 rounded-lg transition-all"
+                >
                   <Settings size={16} />
-                  Billing & API
-                </button>
+                  Bot Preferences
+                </Link>
               </div>
 
               <div className="p-2 border-t border-zinc-100">

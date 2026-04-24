@@ -1,95 +1,182 @@
 "use client";
-import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { useState, useEffect, useMemo } from "react";
+import { Trash2, Loader2, FileText } from "lucide-react";
+import { supabase } from "../lib/supabase";
+import { applyFiltersAndSort } from "../utils/sortUtils";
 
 export default function KnowledgeBaseTable() {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Sorting & Filtering State
+  const [sortConfig, setSortConfig] = useState({
+    key: "created_at",
+    direction: "desc",
+    filterKey: "category",
+    filterValue: "All",
+  });
 
   useEffect(() => {
     fetchFiles();
   }, []);
 
   const fetchFiles = async () => {
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      const user = authData?.user;
+    setLoading(true);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from("ingested_files")
-        .select("*")
-        .eq("created_by", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setFiles(data);
-    } catch (error) {
-      console.error("Error fetching files:", error.message);
-    } finally {
+    if (!user) {
       setLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("ingested_files")
+      .select("*")
+      .eq("created_by", user.id)
+      .order("created_at", { ascending: false });
+
+    if (!error) setFiles(data);
+    setLoading(false);
+  };
+
+  const deleteFile = async (id) => {
+    const { error } = await supabase
+      .from("ingested_files")
+      .delete()
+      .eq("id", id);
+    if (!error) {
+      setFiles(files.filter((f) => f.id !== id));
     }
   };
 
-  if (loading)
-    return <div className="p-4 text-gray-500">Loading Knowledge Base...</div>;
+  // Get unique categories for the dropdown filter
+  const uniqueCategories = [
+    "All",
+    ...new Set(files.map((file) => file.category || "General")),
+  ];
+
+  const displayedFiles = useMemo(() => {
+    return applyFiltersAndSort(files, sortConfig);
+  }, [files, sortConfig]);
 
   return (
-    <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden shadow-lg mt-8">
-      <div className="p-6 border-b border-white/10">
-        <h2 className="text-xl font-semibold text-gray-700">
-          Active Knowledge Base
-        </h2>
-        <p className="text-sm text-gray-400 mt-1">
-          Documents and websites currently loaded into the bot's memory.
-        </p>
+    <div className="max-w-5xl mx-auto">
+      <div className="flex flex-col gap-6 mb-10 border-b border-zinc-200 pb-6">
+        <div>
+          <h1 className="text-4xl font-bold text-black tracking-tight">
+            Knowledge Base
+          </h1>
+          <p className="text-zinc-500 mt-2">
+            Manage the documents currently stored in the RAG bot's memory.
+          </p>
+        </div>
+
+        {/* Filters and Sorting UI */}
+        <div className="flex gap-3">
+          <select
+            className="border border-zinc-200 bg-white px-4 py-2 rounded-lg text-sm font-medium outline-none"
+            onChange={(e) =>
+              setSortConfig({
+                ...sortConfig,
+                filterKey: "category",
+                filterValue: e.target.value,
+              })
+            }
+          >
+            {uniqueCategories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat === "All" ? "All Categories" : cat}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="border border-zinc-200 bg-white px-4 py-2 rounded-lg text-sm font-medium outline-none"
+            onChange={(e) =>
+              setSortConfig({
+                ...sortConfig,
+                key: "created_at",
+                direction: e.target.value,
+              })
+            }
+          >
+            <option value="desc">Newest First</option>
+            <option value="asc">Oldest First</option>
+          </select>
+
+          <select
+            className="border border-zinc-200 bg-white px-4 py-2 rounded-lg text-sm font-medium outline-none"
+            onChange={(e) =>
+              setSortConfig({
+                ...sortConfig,
+                key: "filename",
+                direction: e.target.value,
+              })
+            }
+          >
+            <option value="asc">A-Z</option>
+            <option value="desc">Z-A</option>
+          </select>
+        </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm text-gray-300">
-          <thead className="bg-white/5 text-xs uppercase text-gray-400">
-            <tr>
-              <th className="px-6 py-4 font-medium">Filename / Source</th>
-              <th className="px-6 py-4 font-medium">Uploaded By</th>
-              <th className="px-6 py-4 font-medium">Date Added</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/10">
-            {files.length === 0 ? (
-              <tr>
-                <td colSpan="3" className="px-6 py-8 text-center text-gray-500">
-                  No files ingested yet. Use the Telegram bot to add context.
-                </td>
-              </tr>
-            ) : (
-              files.map((file) => (
-                <tr
-                  key={file.id}
-                  className="hover:bg-white/5 transition-colors"
+      <div className="bg-white rounded-2xl border border-zinc-200 overflow-hidden shadow-sm">
+        {loading ? (
+          <div className="p-20 flex justify-center">
+            <Loader2 className="animate-spin text-zinc-300" size={40} />
+          </div>
+        ) : displayedFiles.length === 0 ? (
+          <div className="p-20 text-center">
+            <p className="text-zinc-400 font-medium">
+              No files found matching your filters.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-zinc-100">
+            {displayedFiles.map((file) => (
+              <div
+                key={file.id}
+                className="p-5 flex items-center justify-between hover:bg-zinc-50 transition-colors group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="bg-zinc-100 p-3 rounded-xl text-zinc-400">
+                    <FileText size={24} />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-semibold text-black">
+                        {file.filename}
+                      </h3>
+                      <span className="bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wide">
+                        {file.category || "General"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-zinc-500 font-medium">
+                      <span>
+                        Uploaded by @{file.uploaded_by_username || "Unknown"}
+                      </span>
+                      <span>•</span>
+                      <span>
+                        {new Date(file.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => deleteFile(file.id)}
+                  className="p-2.5 text-zinc-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                  title="Delete File"
                 >
-                  <td className="px-6 py-4 font-medium text-blue-400">
-                    {file.filename}
-                  </td>
-                  <td className="px-6 py-4">
-                    @{file.uploaded_by_username || "Unknown Admin"}
-                  </td>
-                  <td className="px-6 py-4 text-gray-500">
-                    {new Date(file.created_at).toLocaleDateString()} at{" "}
-                    {new Date(file.created_at).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
