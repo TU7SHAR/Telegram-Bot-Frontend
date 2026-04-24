@@ -16,9 +16,9 @@ export default function Sidebar() {
 
   const navItems = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
-    { name: "Invite Tokens", href: "/invites", icon: Key },
+    { name: "Token Management", href: "/invites", icon: Key },
     { name: "Knowledge Base", href: "/knowledge", icon: FileText },
-    { name: "Manage Users", href: "/users", icon: Users },
+    { name: "Users Management", href: "/users", icon: Users },
     { name: "Settings", href: "/settings", icon: Settings },
   ];
 
