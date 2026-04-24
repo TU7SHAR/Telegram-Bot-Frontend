@@ -28,6 +28,7 @@ export default function Settings() {
 
   // Inside settings/page.jsx, update handleSave:
 
+  // Replace your handleSave function in settings/page.jsx
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -35,10 +36,10 @@ export default function Settings() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      // Logic: If strict mode is ON, temp is 0.2. If OFF, temp is 0.8
+      // Auto-calculate temperature based on your logic:
+      // Strict Mode: 0.2 | Fallback Mode: 0.8
       const finalTemp = settings.strictKnowledge ? 0.2 : 0.8;
 
-      // Check if settings exist for this user, otherwise insert
       const { data: existing } = await supabase
         .from("bot_settings")
         .select("id")
@@ -65,10 +66,9 @@ export default function Settings() {
           },
         ]);
       }
-
-      alert("Preferences saved and bot updated live!");
+      alert("Settings synchronized with the bot!");
     } catch (err) {
-      alert("Error saving settings.");
+      alert("Save failed.");
     }
     setIsSaving(false);
   };
