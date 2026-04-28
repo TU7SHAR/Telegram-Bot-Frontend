@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Settings as SettingsIcon,
   Sliders,
@@ -11,11 +11,12 @@ import {
   Database,
   ScrollText,
 } from "lucide-react";
+import { supabase } from "@/app/lib/supabase";
 
 export default function Settings() {
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Future-proofing for a 'bot_settings' Supabase table
   const [settings, setSettings] = useState({
     welcomeMessage:
       "Welcome to the Drish Infotech Knowledge Assistant. Send me a question to get started!",
@@ -26,55 +27,80 @@ export default function Settings() {
     maintenanceMode: false,
   });
 
-  // Inside settings/page.jsx, update handleSave:
+  // 1. Load existing settings from the database on page mount
+  useEffect(() => {
+    async function loadSettings() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
 
-  // Replace your handleSave function in settings/page.jsx
+      const { data, error } = await supabase
+        .from("bot_settings")
+        .select("*")
+        .eq("created_by", user.id)
+        .maybeSingle();
+
+      if (data && !error) {
+        setSettings((prev) => ({
+          ...prev,
+          temperature: data.temperature,
+          strictKnowledge: data.strict_knowledge_mode,
+          maintenanceMode: data.maintenance_mode,
+        }));
+      }
+      setIsLoading(false);
+    }
+    loadSettings();
+  }, []);
+
+  // 2. Real handleSave function with Upsert
   const handleSave = async () => {
     setIsSaving(true);
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+      if (!user) throw new Error("User session not found");
 
-      // Auto-calculate temperature based on your logic:
-      // Strict Mode: 0.2 | Fallback Mode: 0.8
+      // Logic: Strict Mode = 0.2 temperature, otherwise 0.8
       const finalTemp = settings.strictKnowledge ? 0.2 : 0.8;
 
-      const { data: existing } = await supabase
-        .from("bot_settings")
-        .select("id")
-        .eq("created_by", user.id)
-        .maybeSingle();
+      const { error } = await supabase.from("bot_settings").upsert(
+        {
+          created_by: user.id,
+          temperature: finalTemp,
+          strict_knowledge_mode: settings.strictKnowledge,
+          maintenance_mode: settings.maintenanceMode,
+          updated_at: new Date(),
+        },
+        { onConflict: "created_by" },
+      );
 
-      if (existing) {
-        await supabase
-          .from("bot_settings")
-          .update({
-            temperature: finalTemp,
-            strict_knowledge_mode: settings.strictKnowledge,
-            maintenance_mode: settings.maintenanceMode,
-            updated_at: new Date(),
-          })
-          .eq("id", existing.id);
+      if (error) {
+        console.error("Save Error:", error);
+        alert(`Save failed: ${error.message}`);
       } else {
-        await supabase.from("bot_settings").insert([
-          {
-            created_by: user.id,
-            temperature: finalTemp,
-            strict_knowledge_mode: settings.strictKnowledge,
-            maintenance_mode: settings.maintenanceMode,
-          },
-        ]);
+        alert("Bot preferences updated and live! 🚀");
       }
-      alert("Settings synchronized with the bot!");
     } catch (err) {
-      alert("Save failed.");
+      alert("An unexpected error occurred.");
+    } finally {
+      setIsSaving(false);
     }
-    setIsSaving(false);
   };
 
+  if (isLoading) {
+    return (
+      <div className="max-w-4xl mx-auto pt-20 flex justify-center items-center text-zinc-400 gap-2">
+        <Loader2 className="animate-spin" size={20} />
+        Syncing preferences...
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-4xl mx-auto pb-10">
+    <div className="max-w-4xl mx-auto pb-10 px-4">
       <div className="flex flex-col gap-2 mb-10 border-b border-zinc-200 pb-6">
         <h1 className="text-4xl font-bold text-black tracking-tight flex items-center gap-3">
           <SettingsIcon size={36} />
@@ -102,27 +128,13 @@ export default function Settings() {
                   Creativity (Temperature)
                 </label>
                 <span className="text-xs font-mono bg-zinc-100 px-2 py-1 rounded text-zinc-600">
-                  {settings.temperature}
+                  {settings.strictKnowledge ? "0.2 (Strict)" : "0.8 (Creative)"}
                 </span>
               </div>
               <p className="text-xs text-zinc-500 mb-3">
-                Lower values (0.1 - 0.3) make the bot strict and factual. Higher
-                values (0.7+) make it more creative.
+                Managed by Strict Knowledge Mode. Strict mode forces facts
+                (0.2), while disabling it allows creative responses (0.8).
               </p>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={settings.temperature}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    temperature: parseFloat(e.target.value),
-                  })
-                }
-                className="w-full h-2 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-black"
-              />
             </div>
 
             {/* Strict Knowledge Toggle */}
