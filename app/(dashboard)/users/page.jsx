@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { ShieldBan, Loader2, Users, Search } from "lucide-react";
+import { ShieldBan, ShieldCheck, Loader2, Users, Search } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { applyFiltersAndSort } from "../../utils/sortUtils";
 
@@ -47,32 +47,48 @@ export default function ManageUsers() {
   const revokeAccess = async (telegramId, tokenId) => {
     if (
       !confirm(
-        "Are you sure you want to revoke this user's access? The token will become reusable.",
+        "Are you sure you want to revoke this user's access and ban them?",
       )
     )
       return;
 
-    // 1. Delete from authorized_users table
+    // 1. Ban the user officially
     await supabase
       .from("authorized_users")
-      .delete()
+      .update({ is_banned: true })
       .eq("telegram_id", telegramId);
 
-    // 2. Reset the token in invite_tokens
+    // 2. Mark the token as permanently revoked
     const { error } = await supabase
       .from("invite_tokens")
-      .update({
-        is_used: false,
-        used_by_telegram_id: null,
-        used_by_username: null,
-      })
+      .update({ is_revoked: true })
       .eq("id", tokenId);
 
     if (!error) {
-      // Remove the user from the UI
-      setActiveUsers(activeUsers.filter((u) => u.id !== tokenId));
+      // Refresh the list to show the new Banned status
+      fetchActiveUsers();
     } else {
       alert("Failed to revoke access.");
+    }
+  };
+
+  const unbanUser = async (telegramId, tokenId) => {
+    if (!confirm("Are you sure you want to unban this user?")) return;
+
+    await supabase
+      .from("authorized_users")
+      .update({ is_banned: false })
+      .eq("telegram_id", telegramId);
+
+    const { error } = await supabase
+      .from("invite_tokens")
+      .update({ is_revoked: false })
+      .eq("id", tokenId);
+
+    if (!error) {
+      fetchActiveUsers();
+    } else {
+      alert("Failed to remove ban.");
     }
   };
 
@@ -159,9 +175,15 @@ export default function ManageUsers() {
                       <h3 className="font-semibold text-black">
                         @{user.used_by_username || "Unknown"}
                       </h3>
-                      <span className="bg-green-100 text-green-800 px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wide">
-                        Active
-                      </span>
+                      {user.is_revoked ? (
+                        <span className="bg-red-100 text-red-800 px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wide">
+                          Banned
+                        </span>
+                      ) : (
+                        <span className="bg-green-100 text-green-800 px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wide">
+                          Active
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-zinc-500 font-medium">
                       <span>Telegram ID: {user.used_by_telegram_id}</span>
@@ -171,16 +193,27 @@ export default function ManageUsers() {
                   </div>
                 </div>
 
-                <button
-                  onClick={() =>
-                    revokeAccess(user.used_by_telegram_id, user.id)
-                  }
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-all"
-                  title="Revoke Access"
-                >
-                  <ShieldBan size={16} />
-                  Revoke Access
-                </button>
+                {user.is_revoked ? (
+                  <button
+                    onClick={() => unbanUser(user.used_by_telegram_id, user.id)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-all"
+                    title="Remove Ban"
+                  >
+                    <ShieldCheck size={16} />
+                    Remove Ban
+                  </button>
+                ) : (
+                  <button
+                    onClick={() =>
+                      revokeAccess(user.used_by_telegram_id, user.id)
+                    }
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-all"
+                    title="Revoke & Ban"
+                  >
+                    <ShieldBan size={16} />
+                    Revoke & Ban
+                  </button>
+                )}
               </div>
             ))}
           </div>

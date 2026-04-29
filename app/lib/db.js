@@ -31,14 +31,15 @@ export async function ensureAdminToken(userId) {
 }
 
 export async function getAllTokens(userId) {
-  if (!userId) return [];
-  try {
-    return await db.query.inviteTokens.findMany({
-      where: eq(inviteTokens.createdBy, userId),
-      orderBy: [desc(inviteTokens.createdAt)],
-    });
-  } catch (err) {
-    console.error(err);
+  const { data, error } = await supabase
+    .from("invite_tokens")
+    .select("*") // Change this line to '*' so it grabs the new is_revoked column
+    .eq("created_by", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error(error);
     return [];
   }
+  return data;
 }

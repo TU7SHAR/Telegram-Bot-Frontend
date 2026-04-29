@@ -10,7 +10,6 @@ export default function DashboardHome() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(null);
 
-  // New States for Caption and Sorting
   const [captionInput, setCaptionInput] = useState("");
   const [sortConfig, setSortConfig] = useState({
     key: "created_at",
@@ -40,7 +39,9 @@ export default function DashboardHome() {
       .eq("created_by", user.id)
       .order("created_at", { ascending: false });
 
-    if (!error) setTokens(data);
+    if (!error && data) {
+      setTokens(data);
+    }
     setLoading(false);
   };
 
@@ -76,9 +77,10 @@ export default function DashboardHome() {
 
       if (error) {
         alert("DB Error: " + error.message);
-      } else {
-        setTokens([data[0], ...tokens]);
-        setCaptionInput(""); // Clear input
+      } else if (data && data.length > 0) {
+        // Safe state update to prevent nested arrays
+        setTokens((prevTokens) => [data[0], ...prevTokens]);
+        setCaptionInput("");
       }
     } catch (err) {
       console.error("Critical Catch:", err);
@@ -91,7 +93,7 @@ export default function DashboardHome() {
       .delete()
       .eq("id", id);
     if (!error) {
-      setTokens(tokens.filter((t) => t.id !== id));
+      setTokens((prev) => prev.filter((t) => t.id !== id));
     }
   };
 
@@ -101,9 +103,10 @@ export default function DashboardHome() {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  // Apply filters and sorting via utility function
   const displayedTokens = useMemo(() => {
-    return applyFiltersAndSort(tokens, sortConfig);
+    // Failsafe: Ensure tokens is always a flat array before sorting
+    const flatTokens = Array.isArray(tokens) ? tokens.flat() : [];
+    return applyFiltersAndSort(flatTokens, sortConfig);
   }, [tokens, sortConfig]);
 
   return (
@@ -118,7 +121,6 @@ export default function DashboardHome() {
           </p>
         </div>
 
-        {/* Generate Controls */}
         <div className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-zinc-200 shadow-sm">
           <div className="relative flex-1">
             <input
@@ -138,7 +140,6 @@ export default function DashboardHome() {
           </button>
         </div>
 
-        {/* Filters and Sorting UI */}
         <div className="flex gap-3">
           <select
             className="border border-zinc-200 bg-white px-4 py-2 rounded-lg text-sm font-medium outline-none"
@@ -184,61 +185,72 @@ export default function DashboardHome() {
           </div>
         ) : (
           <div className="divide-y divide-zinc-100">
-            {displayedTokens.map((token) => (
-              <div
-                key={token.id}
-                className="p-5 flex items-center justify-between hover:bg-zinc-50 transition-colors group"
-              >
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-3">
-                    <h3 className="font-semibold text-lg text-black">
-                      {token.caption || "No caption"}
-                    </h3>
-                    {token.is_used ? (
-                      <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-                        Used by @{token.used_by_username || "Unknown"}
+            {displayedTokens.map((token) => {
+              // Extra safety check in case the database returns a weird object
+              if (!token || typeof token !== "object") return null;
+
+              return (
+                <div
+                  key={token.id}
+                  className="p-5 flex items-center justify-between hover:bg-zinc-50 transition-colors group"
+                >
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-semibold text-lg text-black">
+                        {token.caption || "No caption"}
+                      </h3>
+
+                      {token.is_revoked ? (
+                        <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                          Revoked (Banned)
+                        </span>
+                      ) : token.is_used ? (
+                        <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                          Used by @{token.used_by_username || "Unknown"}
+                        </span>
+                      ) : (
+                        <span className="bg-zinc-100 text-zinc-600 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                          Unused
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-sm font-medium text-zinc-500 bg-zinc-100 px-3 py-1 rounded-md">
+                        {token.token_string}
                       </span>
-                    ) : (
-                      <span className="bg-zinc-100 text-zinc-600 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-                        Unused
-                      </span>
-                    )}
+                      <p className="text-xs text-zinc-400 font-medium">
+                        Created:{" "}
+                        {new Date(token.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-sm font-medium text-zinc-500 bg-zinc-100 px-3 py-1 rounded-md">
-                      {token.token_string}
-                    </span>
-                    <p className="text-xs text-zinc-400 font-medium">
-                      Created: {new Date(token.created_at).toLocaleDateString()}
-                    </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() =>
+                        copyToClipboard(token.token_string, token.id)
+                      }
+                      className="p-2.5 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-xl transition-all"
+                      title="Copy Link"
+                    >
+                      {copied === token.id ? (
+                        <Check size={18} className="text-black" />
+                      ) : (
+                        <Copy size={18} />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => deleteToken(token.id)}
+                      className="p-2.5 text-zinc-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                      title="Delete Token"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() =>
-                      copyToClipboard(token.token_string, token.id)
-                    }
-                    className="p-2.5 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-xl transition-all"
-                    title="Copy Link"
-                  >
-                    {copied === token.id ? (
-                      <Check size={18} className="text-black" />
-                    ) : (
-                      <Copy size={18} />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => deleteToken(token.id)}
-                    className="p-2.5 text-zinc-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                    title="Delete Token"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

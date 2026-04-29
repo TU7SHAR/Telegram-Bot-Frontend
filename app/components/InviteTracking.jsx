@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAllTokens, ensureAdminToken } from "../lib/db";
+import { ensureAdminToken } from "../lib/db";
 import { supabase } from "../lib/supabase";
 
 export default function InviteTracking() {
@@ -22,8 +22,19 @@ export default function InviteTracking() {
         }
 
         await ensureAdminToken(user.id);
-        const result = await getAllTokens(user.id);
-        setTokens(result || []);
+
+        // --- FIXED: Fetch directly from Supabase instead of Drizzle ORM ---
+        const { data: tokensData, error: tokenError } = await supabase
+          .from("invite_tokens")
+          .select("*")
+          .eq("created_by", user.id)
+          .order("created_at", { ascending: false });
+
+        if (tokenError) {
+          console.error("Supabase Error:", tokenError);
+        }
+
+        setTokens(tokensData || []);
       } catch (err) {
         console.error(err);
       } finally {
@@ -68,6 +79,8 @@ export default function InviteTracking() {
             const type = t.tokenType || t.token_type || "normal";
             const link = t.tokenString || t.token_string;
             const isUsed = t.isUsed !== undefined ? t.isUsed : t.is_used;
+            const isRevoked =
+              t.isRevoked !== undefined ? t.isRevoked : t.is_revoked;
             const username = t.usedByUsername || t.used_by_username;
             const note = t.note || "—";
 
@@ -89,7 +102,12 @@ export default function InviteTracking() {
                 </td>
                 <td className="p-4 font-mono text-xs text-zinc-500">{link}</td>
                 <td className="p-4">
-                  {isUsed ? (
+                  {isRevoked ? (
+                    <span className="text-red-600 flex items-center gap-1.5 font-medium">
+                      <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>{" "}
+                      Revoked
+                    </span>
+                  ) : isUsed ? (
                     <span className="text-zinc-400 flex items-center gap-1.5 font-medium">
                       <div className="w-1.5 h-1.5 rounded-full bg-zinc-300"></div>{" "}
                       Used
