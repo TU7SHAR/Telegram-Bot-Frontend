@@ -122,6 +122,15 @@ export default function Login() {
               placeholder="••••••••"
               required
             />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-black"></label>
+              <Link
+                href="/forgot-password"
+                className="text-xs text-zinc-500 hover:text-black hover:underline transition-colors"
+              >
+                Forgot password?
+              </Link>
+            </div>
           </div>
           <button
             type="submit"

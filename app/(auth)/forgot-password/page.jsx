@@ -6,11 +6,9 @@ import { useGSAP } from "@gsap/react";
 import { supabase } from "../../lib/supabase";
 import Link from "next/link";
 
-export default function Register() {
+export default function ForgotPassword() {
   const container = useRef(null);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -26,27 +24,19 @@ export default function Register() {
     { scope: container },
   );
 
-  const handleRegister = async (e) => {
+  const handleResetRequest = async (e) => {
     e.preventDefault();
+    setLoading(true);
     setMessage(null);
 
-    if (password !== confirmPassword) {
-      setMessage({ type: "error", text: "Passwords do not match." });
-      return;
-    }
-
-    setLoading(true);
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/update-password`,
     });
 
     if (error) {
       setMessage({ type: "error", text: error.message });
       setLoading(false);
     } else {
-      // Show success state and ask them to check email
       setIsSuccess(true);
       setLoading(false);
     }
@@ -58,19 +48,17 @@ export default function Register() {
       className="min-h-screen bg-zinc-50 flex items-center justify-center p-4"
     >
       <div className="auth-box max-w-md w-full bg-white rounded-2xl shadow-sm border border-zinc-200 p-8">
-        {/* If registration is successful, show the Check Email message */}
         {isSuccess ? (
           <div className="text-center py-8">
-            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl">
-              ✉️
+            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl">
+              📨
             </div>
             <h2 className="text-2xl font-bold text-black mb-2">
               Check your email
             </h2>
             <p className="text-zinc-500 mb-8">
-              We sent a verification link to{" "}
-              <span className="font-medium text-black">{email}</span>. Please
-              click the link to activate your account.
+              We sent a password reset link to{" "}
+              <span className="font-medium text-black">{email}</span>.
             </p>
             <Link
               href="/login"
@@ -80,26 +68,29 @@ export default function Register() {
             </Link>
           </div>
         ) : (
-          /* Normal Registration Form */
           <>
             <div className="text-center mb-8">
               <h1 className="text-3xl font-bold text-black tracking-tight">
-                Create Account
+                Reset Password
               </h1>
               <p className="text-zinc-500 mt-2">
-                Sign up to get your bot access
+                Enter your email and we'll send you a reset link.
               </p>
             </div>
 
             {message && (
               <div
-                className={`p-3 rounded-lg mb-6 text-sm border ${message.type === "error" ? "bg-red-50 border-red-200 text-red-700" : "bg-black text-white"}`}
+                className={`p-3 rounded-lg mb-6 text-sm border ${
+                  message.type === "error"
+                    ? "bg-red-50 border-red-200 text-red-700"
+                    : "bg-black text-white"
+                }`}
               >
                 {message.text}
               </div>
             )}
 
-            <form onSubmit={handleRegister} className="space-y-4 mb-6">
+            <form onSubmit={handleResetRequest} className="space-y-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-black mb-1">
                   Email Address
@@ -113,51 +104,23 @@ export default function Register() {
                   required
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-black mb-1">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-black focus:outline-none transition-all"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-black mb-1">
-                  Confirm Password
-                </label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-black focus:outline-none transition-all"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
+
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full bg-black hover:bg-zinc-800 text-white font-medium py-2.5 rounded-lg transition-colors mt-2"
               >
-                {loading ? "Creating Account..." : "Sign Up"}
+                {loading ? "Sending link..." : "Send Reset Link"}
               </button>
             </form>
 
             <div className="text-center mt-6">
-              <p className="text-sm text-zinc-600">
-                Already have an account?{" "}
-                <Link
-                  href="/login"
-                  className="text-black hover:underline font-semibold"
-                >
-                  Log in here
-                </Link>
-              </p>
+              <Link
+                href="/login"
+                className="text-sm text-zinc-500 hover:text-black hover:underline transition-colors font-medium"
+              >
+                ← Back to Login
+              </Link>
             </div>
           </>
         )}
