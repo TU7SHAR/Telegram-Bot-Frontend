@@ -10,7 +10,6 @@ export default function InvitesTablePage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(null);
 
-  // Search and Filter States
   const [searchQuery, setSearchQuery] = useState("");
   const [sortConfig, setSortConfig] = useState({
     key: "created_at",
@@ -44,7 +43,13 @@ export default function InvitesTablePage() {
     setLoading(false);
   };
 
-  const deleteToken = async (id) => {
+  const deleteToken = async (id, tokenType) => {
+    // Backend Guard: Stop admin deletion
+    if (tokenType === "admin") {
+      alert("Action Denied: Admin tokens cannot be deleted.");
+      return;
+    }
+
     if (!confirm("Are you sure you want to delete this token?")) return;
     const { error } = await supabase
       .from("invite_tokens")
@@ -61,7 +66,6 @@ export default function InvitesTablePage() {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  // Apply search text first, then our universal sorter
   const displayedTokens = useMemo(() => {
     let filtered = tokens;
     if (searchQuery) {
@@ -92,7 +96,6 @@ export default function InvitesTablePage() {
           </p>
         </div>
 
-        {/* Data Table Controls */}
         <div className="flex gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-3 text-zinc-400" size={18} />
@@ -139,7 +142,6 @@ export default function InvitesTablePage() {
         </div>
       </div>
 
-      {/* The Data Table */}
       <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-20 flex justify-center">
@@ -165,83 +167,108 @@ export default function InvitesTablePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 text-sm">
-                {displayedTokens.map((token) => (
-                  <tr
-                    key={token.id}
-                    className="hover:bg-zinc-50 transition-colors"
-                  >
-                    <td className="p-4 px-6 font-medium text-black">
-                      {token.caption || "—"}
-                    </td>
+                {displayedTokens.map((token) => {
+                  const isAdmin =
+                    token.token_type === "admin" || token.tokenType === "admin";
 
-                    <td className="p-4">
-                      <span className="font-mono text-xs bg-zinc-100 text-zinc-600 px-2 py-1 rounded border border-zinc-200">
-                        {token.token_string.replace("https://t.me/", "")}
-                      </span>
-                    </td>
-
-                    <td className="p-4">
-                      {token.is_used ? (
-                        <span className="inline-flex items-center gap-1.5 bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
-                          <span className="w-1.5 h-1.5 bg-green-600 rounded-full"></span>
-                          Used
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 bg-zinc-100 text-zinc-600 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
-                          <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full"></span>
-                          Unused
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="p-4 text-zinc-600">
-                      {token.is_used ? (
-                        <div className="flex flex-col">
-                          <span className="font-medium text-black">
-                            @{token.used_by_username || "Unknown"}
-                          </span>
-                          <span className="text-xs text-zinc-400">
-                            ID: {token.used_by_telegram_id}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-zinc-400 italic">Pending...</span>
-                      )}
-                    </td>
-
-                    <td className="p-4 text-zinc-500 whitespace-nowrap">
-                      {new Date(token.created_at).toLocaleString([], {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
-                    </td>
-
-                    <td className="p-4 px-6">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() =>
-                            copyToClipboard(token.token_string, token.id)
-                          }
-                          className="p-2 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-lg transition-all"
-                          title="Copy Full Link"
-                        >
-                          {copied === token.id ? (
-                            <Check size={16} className="text-black" />
-                          ) : (
-                            <Copy size={16} />
+                  return (
+                    <tr
+                      key={token.id}
+                      className="hover:bg-zinc-50 transition-colors"
+                    >
+                      <td className="p-4 px-6 font-medium text-black">
+                        <div className="flex items-center gap-2">
+                          {token.caption || "—"}
+                          {isAdmin && (
+                            <span className="bg-black text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest">
+                              Admin
+                            </span>
                           )}
-                        </button>
-                        <button
-                          onClick={() => deleteToken(token.id)}
-                          className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                          title="Delete Token"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                        </div>
+                      </td>
+
+                      <td className="p-4">
+                        <span className="font-mono text-xs bg-zinc-100 text-zinc-600 px-2 py-1 rounded border border-zinc-200">
+                          {token.token_string.replace("https://t.me/", "")}
+                        </span>
+                      </td>
+
+                      <td className="p-4">
+                        {token.is_revoked ? (
+                          <span className="inline-flex items-center gap-1.5 bg-red-100 text-red-700 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
+                            <span className="w-1.5 h-1.5 bg-red-600 rounded-full"></span>
+                            Revoked
+                          </span>
+                        ) : token.is_used ? (
+                          <span className="inline-flex items-center gap-1.5 bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
+                            <span className="w-1.5 h-1.5 bg-green-600 rounded-full"></span>
+                            Used
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 bg-zinc-100 text-zinc-600 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
+                            <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full"></span>
+                            Unused
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="p-4 text-zinc-600">
+                        {token.is_used ? (
+                          <div className="flex flex-col">
+                            <span className="font-medium text-black">
+                              @{token.used_by_username || "Unknown"}
+                            </span>
+                            <span className="text-xs text-zinc-400">
+                              ID: {token.used_by_telegram_id}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-zinc-400 italic">
+                            Pending...
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="p-4 text-zinc-500 whitespace-nowrap">
+                        {new Date(token.created_at).toLocaleString([], {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })}
+                      </td>
+
+                      <td className="p-4 px-6">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() =>
+                              copyToClipboard(token.token_string, token.id)
+                            }
+                            className="p-2 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-lg transition-all"
+                            title="Copy Full Link"
+                          >
+                            {copied === token.id ? (
+                              <Check size={16} className="text-black" />
+                            ) : (
+                              <Copy size={16} />
+                            )}
+                          </button>
+
+                          {/* ONLY show delete button if it is NOT an admin token */}
+                          {!isAdmin && (
+                            <button
+                              onClick={() =>
+                                deleteToken(token.id, token.token_type)
+                              }
+                              className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                              title="Delete Token"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

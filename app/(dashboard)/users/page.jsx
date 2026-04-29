@@ -32,7 +32,6 @@ export default function ManageUsers() {
       return;
     }
 
-    // Fetch tokens that are currently in use
     const { data, error } = await supabase
       .from("invite_tokens")
       .select("*")
@@ -44,7 +43,13 @@ export default function ManageUsers() {
     setLoading(false);
   };
 
-  const revokeAccess = async (telegramId, tokenId) => {
+  const revokeAccess = async (telegramId, tokenId, tokenType) => {
+    // Backend Guard: Prevent admin banning
+    if (tokenType === "admin") {
+      alert("Action Denied: System Admins cannot be banned.");
+      return;
+    }
+
     if (
       !confirm(
         "Are you sure you want to revoke this user's access and ban them?",
@@ -52,20 +57,17 @@ export default function ManageUsers() {
     )
       return;
 
-    // 1. Ban the user officially
     await supabase
       .from("authorized_users")
       .update({ is_banned: true })
       .eq("telegram_id", telegramId);
 
-    // 2. Mark the token as permanently revoked
     const { error } = await supabase
       .from("invite_tokens")
       .update({ is_revoked: true })
       .eq("id", tokenId);
 
     if (!error) {
-      // Refresh the list to show the new Banned status
       fetchActiveUsers();
     } else {
       alert("Failed to revoke access.");
@@ -92,7 +94,6 @@ export default function ManageUsers() {
     }
   };
 
-  // Apply search query first, then sorting logic
   const displayedUsers = useMemo(() => {
     let filtered = activeUsers;
     if (searchQuery) {
@@ -121,7 +122,6 @@ export default function ManageUsers() {
           </p>
         </div>
 
-        {/* Controls */}
         <div className="flex gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-3 text-zinc-400" size={18} />
@@ -161,61 +161,82 @@ export default function ManageUsers() {
           </div>
         ) : (
           <div className="divide-y divide-zinc-100">
-            {displayedUsers.map((user) => (
-              <div
-                key={user.id}
-                className="p-5 flex items-center justify-between hover:bg-zinc-50 transition-colors group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="bg-zinc-100 p-3 rounded-xl text-zinc-400">
-                    <Users size={24} />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-3">
-                      <h3 className="font-semibold text-black">
-                        @{user.used_by_username || "Unknown"}
-                      </h3>
-                      {user.is_revoked ? (
-                        <span className="bg-red-100 text-red-800 px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wide">
-                          Banned
-                        </span>
-                      ) : (
-                        <span className="bg-green-100 text-green-800 px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wide">
-                          Active
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-zinc-500 font-medium">
-                      <span>Telegram ID: {user.used_by_telegram_id}</span>
-                      <span>•</span>
-                      <span>Access via: {user.caption}</span>
-                    </div>
-                  </div>
-                </div>
+            {displayedUsers.map((user) => {
+              const isAdmin =
+                user.token_type === "admin" || user.tokenType === "admin";
 
-                {user.is_revoked ? (
-                  <button
-                    onClick={() => unbanUser(user.used_by_telegram_id, user.id)}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-all"
-                    title="Remove Ban"
-                  >
-                    <ShieldCheck size={16} />
-                    Remove Ban
-                  </button>
-                ) : (
-                  <button
-                    onClick={() =>
-                      revokeAccess(user.used_by_telegram_id, user.id)
-                    }
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-all"
-                    title="Revoke & Ban"
-                  >
-                    <ShieldBan size={16} />
-                    Revoke & Ban
-                  </button>
-                )}
-              </div>
-            ))}
+              return (
+                <div
+                  key={user.id}
+                  className="p-5 flex items-center justify-between hover:bg-zinc-50 transition-colors group"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="bg-zinc-100 p-3 rounded-xl text-zinc-400">
+                      <Users size={24} />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-3">
+                        <h3 className="font-semibold text-black">
+                          @{user.used_by_username || "Unknown"}
+                        </h3>
+                        {user.is_revoked ? (
+                          <span className="bg-red-100 text-red-800 px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wide">
+                            Banned
+                          </span>
+                        ) : isAdmin ? (
+                          <span className="bg-black text-white px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wide">
+                            Admin
+                          </span>
+                        ) : (
+                          <span className="bg-green-100 text-green-800 px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wide">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-zinc-500 font-medium">
+                        <span>Telegram ID: {user.used_by_telegram_id}</span>
+                        <span>•</span>
+                        <span>Access via: {user.caption || "Admin Token"}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* UI Guard: Prevent interaction on Admin Token */}
+                  {isAdmin ? (
+                    <div className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-zinc-400 bg-zinc-100 rounded-lg cursor-not-allowed">
+                      <ShieldCheck size={16} />
+                      Admin Protected
+                    </div>
+                  ) : user.is_revoked ? (
+                    <button
+                      onClick={() =>
+                        unbanUser(user.used_by_telegram_id, user.id)
+                      }
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-all"
+                      title="Remove Ban"
+                    >
+                      <ShieldCheck size={16} />
+                      Remove Ban
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() =>
+                        revokeAccess(
+                          user.used_by_telegram_id,
+                          user.id,
+                          user.token_type,
+                        )
+                      }
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-all"
+                      title="Revoke & Ban"
+                    >
+                      <ShieldBan size={16} />
+                      Revoke & Ban
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

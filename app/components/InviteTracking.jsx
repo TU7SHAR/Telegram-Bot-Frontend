@@ -23,7 +23,7 @@ export default function InviteTracking() {
 
         await ensureAdminToken(user.id);
 
-        // --- FIXED: Fetch directly from Supabase instead of Drizzle ORM ---
+        // Fetch directly from Supabase to guarantee we get the new is_revoked column
         const { data: tokensData, error: tokenError } = await supabase
           .from("invite_tokens")
           .select("*")
@@ -84,44 +84,66 @@ export default function InviteTracking() {
             const username = t.usedByUsername || t.used_by_username;
             const note = t.note || "—";
 
+            // Determine if the row should be styled as banned/strikethrough
+            const isBanned = isRevoked === true;
+
             return (
               <tr
                 key={t.id}
-                className="text-sm hover:bg-zinc-50 transition-colors"
+                title={isBanned ? "This person is banned" : ""}
+                className={`text-sm transition-colors ${
+                  isBanned
+                    ? "bg-red-50/40 line-through decoration-red-500 decoration-2 hover:bg-red-50/80 cursor-help"
+                    : "hover:bg-zinc-50"
+                }`}
               >
                 <td className="p-4">
                   <span
                     className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                      type === "admin"
-                        ? "bg-black text-white"
-                        : "bg-blue-100 text-blue-700"
+                      isBanned
+                        ? "bg-red-100/50 text-red-700/60" // Muted red pill for banned
+                        : type === "admin"
+                          ? "bg-black text-white"
+                          : "bg-blue-100 text-blue-700"
                     }`}
                   >
                     {type}
                   </span>
                 </td>
-                <td className="p-4 font-mono text-xs text-zinc-500">{link}</td>
+                <td
+                  className={`p-4 font-mono text-xs ${isBanned ? "text-red-900/40" : "text-zinc-500"}`}
+                >
+                  {link}
+                </td>
                 <td className="p-4">
-                  {isRevoked ? (
-                    <span className="text-red-600 flex items-center gap-1.5 font-medium">
-                      <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>{" "}
-                      Revoked
-                    </span>
-                  ) : isUsed ? (
-                    <span className="text-zinc-400 flex items-center gap-1.5 font-medium">
-                      <div className="w-1.5 h-1.5 rounded-full bg-zinc-300"></div>{" "}
+                  {/* Status remains "Used" or "Ready", but changes color if banned */}
+                  {isUsed ? (
+                    <span
+                      className={`flex items-center gap-1.5 font-medium ${isBanned ? "text-red-900/40" : "text-zinc-400"}`}
+                    >
+                      <div
+                        className={`w-1.5 h-1.5 rounded-full ${isBanned ? "bg-red-400/50" : "bg-zinc-300"}`}
+                      ></div>{" "}
                       Used
                     </span>
                   ) : (
-                    <span className="text-green-600 flex items-center gap-1.5 font-medium">
-                      <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>{" "}
+                    <span
+                      className={`flex items-center gap-1.5 font-medium ${isBanned ? "text-red-900/40" : "text-green-600"}`}
+                    >
+                      <div
+                        className={`w-1.5 h-1.5 rounded-full ${isBanned ? "bg-red-400/50" : "bg-green-500 animate-pulse"}`}
+                      ></div>{" "}
                       Ready
                     </span>
                   )}
                 </td>
-                <td className="p-4 text-zinc-400 italic text-xs">
+                <td
+                  className={`p-4 italic text-xs ${isBanned ? "text-red-900/40" : "text-zinc-400"}`}
+                >
                   {isUsed && username ? (
-                    <span className="text-black font-medium not-italic">
+                    <span
+                      className={`font-medium not-italic ${isBanned ? "text-red-900/40" : "text-black"}`}
+                    >
                       @{username}
                     </span>
                   ) : (

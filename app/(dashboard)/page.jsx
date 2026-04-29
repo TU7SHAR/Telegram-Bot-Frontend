@@ -78,7 +78,6 @@ export default function DashboardHome() {
       if (error) {
         alert("DB Error: " + error.message);
       } else if (data && data.length > 0) {
-        // Safe state update to prevent nested arrays
         setTokens((prevTokens) => [data[0], ...prevTokens]);
         setCaptionInput("");
       }
@@ -87,7 +86,14 @@ export default function DashboardHome() {
     }
   };
 
-  const deleteToken = async (id) => {
+  const deleteToken = async (id, tokenType) => {
+    // Backend Guard: Stop admin deletion
+    if (tokenType === "admin") {
+      alert("Action Denied: Admin tokens cannot be deleted.");
+      return;
+    }
+
+    if (!confirm("Are you sure you want to delete this token?")) return;
     const { error } = await supabase
       .from("invite_tokens")
       .delete()
@@ -104,7 +110,6 @@ export default function DashboardHome() {
   };
 
   const displayedTokens = useMemo(() => {
-    // Failsafe: Ensure tokens is always a flat array before sorting
     const flatTokens = Array.isArray(tokens) ? tokens.flat() : [];
     return applyFiltersAndSort(flatTokens, sortConfig);
   }, [tokens, sortConfig]);
@@ -186,8 +191,11 @@ export default function DashboardHome() {
         ) : (
           <div className="divide-y divide-zinc-100">
             {displayedTokens.map((token) => {
-              // Extra safety check in case the database returns a weird object
               if (!token || typeof token !== "object") return null;
+
+              // Identify if this is the core Admin token
+              const isAdmin =
+                token.token_type === "admin" || token.tokenType === "admin";
 
               return (
                 <div
@@ -196,20 +204,29 @@ export default function DashboardHome() {
                 >
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-3">
-                      <h3 className="font-semibold text-lg text-black">
+                      <h3 className="font-semibold text-lg text-black flex items-center gap-2">
                         {token.caption || "No caption"}
+                        {isAdmin && (
+                          <span className="bg-black text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest">
+                            Admin
+                          </span>
+                        )}
                       </h3>
 
+                      {/* Clean Status Badges */}
                       {token.is_revoked ? (
-                        <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-                          Revoked (Banned)
+                        <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 bg-red-600 rounded-full"></span>
+                          Revoked
                         </span>
                       ) : token.is_used ? (
-                        <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                        <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 bg-green-600 rounded-full"></span>
                           Used by @{token.used_by_username || "Unknown"}
                         </span>
                       ) : (
-                        <span className="bg-zinc-100 text-zinc-600 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                        <span className="bg-zinc-100 text-zinc-600 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full"></span>
                           Unused
                         </span>
                       )}
@@ -217,7 +234,7 @@ export default function DashboardHome() {
 
                     <div className="flex items-center gap-3">
                       <span className="font-mono text-sm font-medium text-zinc-500 bg-zinc-100 px-3 py-1 rounded-md">
-                        {token.token_string}
+                        {token.token_string.replace("https://t.me/", "")}
                       </span>
                       <p className="text-xs text-zinc-400 font-medium">
                         Created:{" "}
@@ -240,13 +257,17 @@ export default function DashboardHome() {
                         <Copy size={18} />
                       )}
                     </button>
-                    <button
-                      onClick={() => deleteToken(token.id)}
-                      className="p-2.5 text-zinc-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                      title="Delete Token"
-                    >
-                      <Trash2 size={18} />
-                    </button>
+
+                    {/* Hide delete button for Admin token */}
+                    {!isAdmin && (
+                      <button
+                        onClick={() => deleteToken(token.id, token.token_type)}
+                        className="p-2.5 text-zinc-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                        title="Delete Token"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
