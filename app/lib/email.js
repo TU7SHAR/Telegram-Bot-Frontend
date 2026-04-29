@@ -15,13 +15,13 @@ const transporter = nodemailer.createTransport({
 export async function sendWelcomeEmail(toEmail) {
   try {
     const mailOptions = {
-      from: `"Telegram.Bot" <${process.env.smtp_name}>`,
+      from: `"Telegram.bot" <${process.env.smtp_name}>`,
       to: toEmail,
-      subject: "Welcome to the Telegram RAG Bot Dashboard!",
+      subject: "Welcome to the Telegram.bot Dashboard!",
       html: `
         <div style="font-family: sans-serif; max-width: 600px; padding: 20px; border: 1px solid #eaeaea; border-radius: 10px;">
           <h2 style="color: #000;">Welcome to the Dashboard!</h2>
-          <p style="color: #555;">Your admin account has been successfully created. You can now generate, track, and revoke access keys for your Telegram RAG bot.</p>
+          <p style="color: #555;">Your admin account has been successfully created. You can now generate, track, and revoke access keys for your Telegram.bot.</p>
           <br/>
           <a href="${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}" style="background-color: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Go to Dashboard</a>
         </div>
@@ -39,13 +39,13 @@ export async function sendWelcomeEmail(toEmail) {
 export async function sendInviteLink(toEmail, inviteLink, caption) {
   try {
     const mailOptions = {
-      from: `"Telegram.Bot" <${process.env.smtp_name}>`,
+      from: `"Telegram.bot" <${process.env.smtp_name}>`,
       to: toEmail,
-      subject: "You've been invited to use the Telegram Bot!",
+      subject: "You've been invited to use the Telegram.bot!",
       html: `
         <div style="font-family: sans-serif; max-width: 600px; padding: 20px; border: 1px solid #eaeaea; border-radius: 10px;">
           <h2 style="color: #000;">Your Access Token</h2>
-          <p style="color: #555;">You have been granted access to the Drish Telegram RAG Bot.</p>
+          <p style="color: #555;">You have been granted access to the  Telegram.bot.</p>
           <p style="color: #555;"><strong>Access Level:</strong> ${caption}</p>
           <br/>
           <a href="${inviteLink}" style="background-color: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Start Chatting Now</a>

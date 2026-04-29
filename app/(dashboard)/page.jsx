@@ -10,6 +10,7 @@ import {
   Search,
   Mail,
   X,
+  RefreshCw, // <-- Added Refresh Icon
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { applyFiltersAndSort } from "../utils/sortUtils";
@@ -91,6 +92,8 @@ export default function DashboardHome() {
             token_string: link,
             created_by: user.id,
             caption: finalCaption,
+            is_revoked: false,
+            is_used: false,
           },
         ])
         .select();
@@ -124,6 +127,60 @@ export default function DashboardHome() {
       alert("Something went wrong.");
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const refreshAdminToken = async (id) => {
+    if (
+      !confirm(
+        "Are you sure you want to refresh the Admin Key? This will invalidate your old link.",
+      )
+    )
+      return;
+
+    // Find the token string we are about to destroy
+    const tokenToRefresh = tokens.find((t) => t.id === id);
+
+    // 1. UNLINK FOREIGN KEY: Free the token from the authorized_users table first
+    if (tokenToRefresh?.token_string) {
+      const { error: unlinkError } = await supabase
+        .from("authorized_users")
+        .update({ token_used: null })
+        .eq("token_used", tokenToRefresh.token_string);
+
+      if (unlinkError) {
+        console.error("Failed to unlink token:", unlinkError);
+        // We don't block execution here just in case the user was already deleted
+      }
+    }
+
+    const newTokenString = `token_${Math.random().toString(36).substr(2, 9)}`;
+    const isLocalhost =
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1";
+    const botUsername = isLocalhost ? "devRagbot" : "DrishRag_Bot";
+    const newLink = `https://t.me/${botUsername}?start=${newTokenString}`;
+
+    // 2. NOW IT IS SAFE TO UPDATE THE TOKEN
+    const { data, error } = await supabase
+      .from("invite_tokens")
+      .update({
+        token_string: newLink,
+        is_used: false,
+        used_by_telegram_id: null,
+        used_by_username: null,
+      })
+      .eq("id", id)
+      .select();
+
+    if (error) {
+      alert("Failed to refresh token: " + error.message);
+    } else if (data && data.length > 0) {
+      // Update local state to reflect the shiny new token
+      setTokens((prev) => prev.map((t) => (t.id === id ? data[0] : t)));
+      alert(
+        "Admin Key successfully refreshed! You must click the new link in Telegram to authenticate.",
+      );
     }
   };
 
@@ -322,7 +379,7 @@ export default function DashboardHome() {
                         )}
                       </h3>
 
-                      {token.is_revoked ? (
+                      {token.is_revoked === true ? (
                         <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                           <span className="w-1.5 h-1.5 bg-red-600 rounded-full"></span>
                           Revoked
@@ -366,7 +423,16 @@ export default function DashboardHome() {
                       )}
                     </button>
 
-                    {!isAdmin && (
+                    {/* Show Refresh for Admins, Show Delete for Normals */}
+                    {isAdmin ? (
+                      <button
+                        onClick={() => refreshAdminToken(token.id)}
+                        className="p-2.5 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                        title="Refresh Admin Token"
+                      >
+                        <RefreshCw size={18} />
+                      </button>
+                    ) : (
                       <button
                         onClick={() => deleteToken(token.id, token.token_type)}
                         className="p-2.5 text-zinc-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
