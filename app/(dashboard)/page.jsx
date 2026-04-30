@@ -16,6 +16,7 @@ import { DB } from "@/app/lib/schema_map";
 import { applyFiltersAndSort } from "../utils/sortUtils";
 import { sendInviteLink } from "../lib/email";
 import { supabase } from "@/app/lib/supabase";
+import Script from "next/script";
 
 export default function DashboardHome() {
   const [tokens, setTokens] = useState([]);
@@ -434,7 +435,11 @@ export default function DashboardHome() {
           </div>
         )}
       </div>
-
+{/* BotFactory Widget */}
+<Script id="botfactory-init" strategy="beforeInteractive">
+  {`window.BOTFACTORY_ID = "15";`}
+</Script>
+<Script src="https://chatbot-c53nl.ondigitalocean.app/static/js/embed.js" strategy="afterInteractive" />
     </div>
   
   );
