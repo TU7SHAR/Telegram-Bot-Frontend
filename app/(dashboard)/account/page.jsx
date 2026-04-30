@@ -12,6 +12,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/app/lib/supabase";
+import { DB } from "@/app/lib/schema_map";
 
 export default function AccountPage() {
   const [user, setUser] = useState(null);
@@ -29,11 +30,11 @@ export default function AccountPage() {
         setUser(user);
 
         if (user) {
-          // 2. Fetch Live Bot Settings
+          // 2. Fetch Live Bot Settings using Schema Map
           const { data, error } = await supabase
-            .from("bot_settings")
-            .select("maintenance_mode")
-            .eq("created_by", user.id)
+            .from(DB.SETTINGS.TABLE)
+            .select(DB.SETTINGS.MAINTENANCE_MODE)
+            .eq(DB.SETTINGS.CREATED_BY, user.id)
             .maybeSingle();
 
           if (error) throw error;
@@ -73,7 +74,7 @@ export default function AccountPage() {
     statusColor = "bg-red-600";
     statusText = "Bot Halted";
     pulseColor = "bg-red-400";
-  } else if (botSettings?.maintenance_mode) {
+  } else if (botSettings?.[DB.SETTINGS.MAINTENANCE_MODE]) {
     statusColor = "bg-amber-500";
     statusText = "Maintenance";
     pulseColor = "bg-amber-400";

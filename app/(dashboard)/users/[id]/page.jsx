@@ -15,6 +15,7 @@ import {
   Activity,
 } from "lucide-react";
 import Link from "next/link";
+import { DB } from "@/app/lib/schema_map";
 
 export default function UserProfilePage({ params }) {
   // Unwrap params for Next.js 15 compatibility
@@ -39,31 +40,31 @@ export default function UserProfilePage({ params }) {
     try {
       // 1. Fetch base authorization data
       const { data: authData } = await supabase
-        .from("authorized_users")
+        .from(DB.USERS.TABLE)
         .select("*")
-        .eq("telegram_id", telegramId)
+        .eq(DB.USERS.ID, telegramId)
         .maybeSingle();
 
       // 2. Fetch role from invite tokens
       const { data: tokenData } = await supabase
-        .from("invite_tokens")
-        .select("token_type")
-        .eq("used_by_telegram_id", telegramId)
+        .from(DB.TOKENS.TABLE)
+        .select(DB.TOKENS.TOKEN_TYPE)
+        .eq(DB.TOKENS.USED_BY_ID, telegramId)
         .maybeSingle();
 
       // 3. Fetch full onboarding profile
       const { data: onboardingData } = await supabase
-        .from("onboarding_leads")
+        .from(DB.ONBOARDING.TABLE)
         .select("*")
-        .eq("telegram_id", telegramId)
+        .eq(DB.ONBOARDING.TELEGRAM_ID, telegramId)
         .maybeSingle();
 
       // 4. Fetch test history
       const { data: testData } = await supabase
-        .from("test_results")
+        .from(DB.TESTS.TABLE)
         .select("*")
-        .eq("telegram_id", telegramId)
-        .order("created_at", { ascending: false });
+        .eq(DB.TESTS.TELEGRAM_ID, telegramId)
+        .order(DB.TESTS.CREATED_AT, { ascending: false });
 
       setUserData({
         auth: authData,
@@ -86,8 +87,8 @@ export default function UserProfilePage({ params }) {
     );
   }
 
-  const name = userData.onboarding?.full_name || "Unknown User";
-  const roleType = userData.token?.token_type || "Normal";
+  const name = userData.onboarding?.[DB.ONBOARDING.FULL_NAME] || "Unknown User";
+  const roleType = userData.token?.[DB.TOKENS.TOKEN_TYPE] || "Normal";
 
   return (
     <div className="max-w-5xl mx-auto pb-10">
@@ -135,7 +136,7 @@ export default function UserProfilePage({ params }) {
                   <User size={14} /> Full Name
                 </p>
                 <p className="text-zinc-800 font-medium">
-                  {userData.onboarding.full_name || "N/A"}
+                  {userData.onboarding[DB.ONBOARDING.FULL_NAME] || "N/A"}
                 </p>
               </div>
               <div>
@@ -143,7 +144,7 @@ export default function UserProfilePage({ params }) {
                   <Phone size={14} /> Phone Number
                 </p>
                 <p className="text-zinc-800 font-medium">
-                  {userData.onboarding.phone_number || "N/A"}
+                  {userData.onboarding[DB.ONBOARDING.PHONE_NUMBER] || "N/A"}
                 </p>
               </div>
               <div>
@@ -151,7 +152,7 @@ export default function UserProfilePage({ params }) {
                   <Briefcase size={14} /> Current Role
                 </p>
                 <p className="text-zinc-800 font-medium">
-                  {userData.onboarding.role || "N/A"}
+                  {userData.onboarding[DB.ONBOARDING.ROLE] || "N/A"}
                 </p>
               </div>
               <div>
@@ -159,7 +160,7 @@ export default function UserProfilePage({ params }) {
                   <Activity size={14} /> Experience
                 </p>
                 <p className="text-zinc-800 font-medium">
-                  {userData.onboarding.experience_level || "N/A"}
+                  {userData.onboarding[DB.ONBOARDING.EXPERIENCE_LEVEL] || "N/A"}
                 </p>
               </div>
               <div className="sm:col-span-2 bg-zinc-50 p-4 rounded-xl border border-zinc-100">
@@ -168,8 +169,8 @@ export default function UserProfilePage({ params }) {
                 </p>
                 <p className="text-zinc-700 italic">
                   "
-                  {userData.onboarding.passion ||
-                    userData.onboarding.goal ||
+                  {userData.onboarding[DB.ONBOARDING.PASSION] ||
+                    userData.onboarding[DB.ONBOARDING.GOAL] ||
                     "No details provided."}
                   "
                 </p>
@@ -196,7 +197,11 @@ export default function UserProfilePage({ params }) {
                 <Calendar size={14} /> Joined Date
               </p>
               <p className="text-zinc-800 font-medium">
-                {userData.auth?.created_at ? new Date(userData.auth.created_at).toLocaleDateString() : "Unknown"}
+                {userData.auth?.[DB.USERS.CREATED_AT]
+                  ? new Date(
+                      userData.auth[DB.USERS.CREATED_AT],
+                    ).toLocaleDateString()
+                  : "Unknown"}
               </p>
             </div>
             <div>
@@ -204,7 +209,7 @@ export default function UserProfilePage({ params }) {
                 Invite Token Used
               </p>
               <p className="text-zinc-600 font-mono text-sm bg-zinc-100 px-2 py-1 rounded w-fit">
-                {userData.auth?.token_used || "None"}
+                {userData.auth?.[DB.USERS.TOKEN_USED] || "None"}
               </p>
             </div>
             <div>

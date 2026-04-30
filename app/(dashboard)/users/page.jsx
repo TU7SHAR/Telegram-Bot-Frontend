@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { ShieldBan, ShieldCheck, Loader2, Users, Search } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { applyFiltersAndSort } from "../../utils/sortUtils";
+import { DB } from "@/app/lib/schema_map";
 
 export default function ManageUsers() {
   const [activeUsers, setActiveUsers] = useState([]);
@@ -11,7 +12,7 @@ export default function ManageUsers() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const [sortConfig, setSortConfig] = useState({
-    key: "created_at",
+    key: DB.TOKENS.CREATED_AT,
     direction: "desc",
     filterKey: null,
     filterValue: "All",
@@ -33,11 +34,11 @@ export default function ManageUsers() {
     }
 
     const { data, error } = await supabase
-      .from("invite_tokens")
+      .from(DB.TOKENS.TABLE)
       .select("*")
-      .eq("created_by", user.id)
-      .eq("is_used", true)
-      .order("created_at", { ascending: false });
+      .eq(DB.TOKENS.CREATED_BY, user.id)
+      .eq(DB.TOKENS.IS_USED, true)
+      .order(DB.TOKENS.CREATED_AT, { ascending: false });
 
     if (!error) setActiveUsers(data);
     setLoading(false);
@@ -58,14 +59,14 @@ export default function ManageUsers() {
       return;
 
     await supabase
-      .from("authorized_users")
-      .update({ is_banned: true })
-      .eq("telegram_id", telegramId);
+      .from(DB.USERS.TABLE)
+      .update({ [DB.USERS.IS_BANNED]: true })
+      .eq(DB.USERS.ID, telegramId);
 
     const { error } = await supabase
-      .from("invite_tokens")
-      .update({ is_revoked: true })
-      .eq("id", tokenId);
+      .from(DB.TOKENS.TABLE)
+      .update({ [DB.TOKENS.IS_REVOKED]: true })
+      .eq(DB.TOKENS.ID, tokenId);
 
     if (!error) {
       fetchActiveUsers();
@@ -75,17 +76,32 @@ export default function ManageUsers() {
   };
 
   const unbanUser = async (telegramId, tokenId) => {
-    if (!confirm("Are you sure you want to unban this user?")) return;
+    if (
+      !confirm(
+        "Unban this user? Their old key will remain permanently burned, and they will need a new invite link to rejoin.",
+      )
+    )
+      return;
 
+    // 1. Lift the ban on the user and wipe their active session
     await supabase
-      .from("authorized_users")
-      .update({ is_banned: false })
-      .eq("telegram_id", telegramId);
+      .from(DB.USERS.TABLE)
+      .update({
+        [DB.USERS.IS_BANNED]: false,
+        [DB.USERS.TOKEN_USED]: null, // Force them to start fresh
+      })
+      .eq(DB.USERS.ID, telegramId);
 
+    // 2. Deliberately LEAVE the token as is_revoked = true.
+    // We just detach the user from it so they drop off the "Active Users" view.
     const { error } = await supabase
-      .from("invite_tokens")
-      .update({ is_revoked: false })
-      .eq("id", tokenId);
+      .from(DB.TOKENS.TABLE)
+      .update({
+        [DB.TOKENS.IS_USED]: false,
+        [DB.TOKENS.USED_BY_ID]: null,
+        [DB.TOKENS.USED_BY_USER]: null,
+      })
+      .eq(DB.TOKENS.ID, tokenId);
 
     if (!error) {
       fetchActiveUsers();
@@ -99,12 +115,14 @@ export default function ManageUsers() {
     if (searchQuery) {
       filtered = filtered.filter(
         (u) =>
-          (u.used_by_username &&
-            u.used_by_username
+          (u[DB.TOKENS.USED_BY_USER] &&
+            u[DB.TOKENS.USED_BY_USER]
               .toLowerCase()
               .includes(searchQuery.toLowerCase())) ||
-          (u.caption &&
-            u.caption.toLowerCase().includes(searchQuery.toLowerCase())),
+          (u[DB.TOKENS.CAPTION] &&
+            u[DB.TOKENS.CAPTION]
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase())),
       );
     }
     return applyFiltersAndSort(filtered, sortConfig);
@@ -139,7 +157,7 @@ export default function ManageUsers() {
             onChange={(e) =>
               setSortConfig({
                 ...sortConfig,
-                key: "created_at",
+                key: DB.TOKENS.CREATED_AT,
                 direction: e.target.value,
               })
             }
@@ -162,12 +180,11 @@ export default function ManageUsers() {
         ) : (
           <div className="divide-y divide-zinc-100">
             {displayedUsers.map((user) => {
-              const isAdmin =
-                user.token_type === "admin" || user.tokenType === "admin";
+              const isAdmin = user[DB.TOKENS.TOKEN_TYPE] === "admin";
 
               return (
                 <div
-                  key={user.id}
+                  key={user[DB.TOKENS.ID]}
                   className="p-5 flex items-center justify-between hover:bg-zinc-50 transition-colors group"
                 >
                   <div className="flex items-center gap-4">
@@ -177,9 +194,9 @@ export default function ManageUsers() {
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-3">
                         <h3 className="font-semibold text-black">
-                          @{user.used_by_username || "Unknown"}
+                          @{user[DB.TOKENS.USED_BY_USER] || "Unknown"}
                         </h3>
-                        {user.is_revoked ? (
+                        {user[DB.TOKENS.IS_REVOKED] ? (
                           <span className="bg-red-100 text-red-800 px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wide">
                             Banned
                           </span>
@@ -194,9 +211,11 @@ export default function ManageUsers() {
                         )}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-zinc-500 font-medium">
-                        <span>Telegram ID: {user.used_by_telegram_id}</span>
+                        <span>Telegram ID: {user[DB.TOKENS.USED_BY_ID]}</span>
                         <span>•</span>
-                        <span>Access via: {user.caption || "Admin Token"}</span>
+                        <span>
+                          Access via: {user[DB.TOKENS.CAPTION] || "Admin Token"}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -207,10 +226,13 @@ export default function ManageUsers() {
                       <ShieldCheck size={16} />
                       Admin Protected
                     </div>
-                  ) : user.is_revoked ? (
+                  ) : user[DB.TOKENS.IS_REVOKED] ? (
                     <button
                       onClick={() =>
-                        unbanUser(user.used_by_telegram_id, user.id)
+                        unbanUser(
+                          user[DB.TOKENS.USED_BY_ID],
+                          user[DB.TOKENS.ID],
+                        )
                       }
                       className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-all"
                       title="Remove Ban"
@@ -222,9 +244,9 @@ export default function ManageUsers() {
                     <button
                       onClick={() =>
                         revokeAccess(
-                          user.used_by_telegram_id,
-                          user.id,
-                          user.token_type,
+                          user[DB.TOKENS.USED_BY_ID],
+                          user[DB.TOKENS.ID],
+                          user[DB.TOKENS.TOKEN_TYPE],
                         )
                       }
                       className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-all"

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ensureAdminToken } from "../lib/db";
 import { supabase } from "../lib/supabase";
+import { DB } from "@/app/lib/schema_map";
 
 export default function InviteTracking() {
   const [tokens, setTokens] = useState([]);
@@ -23,12 +24,11 @@ export default function InviteTracking() {
 
         await ensureAdminToken(user.id);
 
-        // Fetch directly from Supabase to guarantee we get the new is_revoked column
         const { data: tokensData, error: tokenError } = await supabase
-          .from("invite_tokens")
+          .from(DB.TOKENS.TABLE)
           .select("*")
-          .eq("created_by", user.id)
-          .order("created_at", { ascending: false });
+          .eq(DB.TOKENS.CREATED_BY, user.id)
+          .order(DB.TOKENS.CREATED_AT, { ascending: false });
 
         if (tokenError) {
           console.error("Supabase Error:", tokenError);
@@ -76,76 +76,67 @@ export default function InviteTracking() {
             </tr>
           )}
           {tokens.map((t) => {
-            const type = t.tokenType || t.token_type || "normal";
-            const link = t.tokenString || t.token_string;
-            const isUsed = t.isUsed !== undefined ? t.isUsed : t.is_used;
-            const isRevoked =
-              t.isRevoked !== undefined ? t.isRevoked : t.is_revoked;
-            const username = t.usedByUsername || t.used_by_username;
-            const note = t.note || "—";
-
-            // Determine if the row should be styled as banned/strikethrough
-            const isBanned = isRevoked === true;
+            const type = t[DB.TOKENS.TOKEN_TYPE] || "normal";
+            const link = t[DB.TOKENS.TOKEN_STRING];
+            const isUsed = t[DB.TOKENS.IS_USED];
+            const isRevoked = t[DB.TOKENS.IS_REVOKED];
+            const username = t[DB.TOKENS.USED_BY_USER];
+            const note = t[DB.TOKENS.CAPTION] || "—";
 
             return (
               <tr
-                key={t.id}
-                title={isBanned ? "This person is banned" : ""}
+                key={t[DB.TOKENS.ID]}
+                title={isRevoked ? "This token is revoked" : ""}
                 className={`text-sm transition-colors ${
-                  isBanned
-                    ? "bg-red-50/40 line-through decoration-red-500 decoration-2 hover:bg-red-50/80 cursor-help"
+                  isRevoked
+                    ? "bg-red-50/40 hover:bg-red-50/80 cursor-help"
                     : "hover:bg-zinc-50"
                 }`}
               >
                 <td className="p-4">
                   <span
                     className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                      isBanned
-                        ? "bg-red-100/50 text-red-700/60" // Muted red pill for banned
+                      isRevoked
+                        ? "bg-red-100 text-red-700"
                         : type === "admin"
                           ? "bg-black text-white"
                           : "bg-blue-100 text-blue-700"
                     }`}
                   >
-                    {type}
+                    {isRevoked ? "Revoked" : type}
                   </span>
                 </td>
                 <td
-                  className={`p-4 font-mono text-xs ${isBanned ? "text-red-900/40" : "text-zinc-500"}`}
+                  className={`p-4 font-mono text-xs ${isRevoked ? "text-red-900/40" : "text-zinc-500"}`}
                 >
                   {link}
                 </td>
                 <td className="p-4">
-                  {/* Status remains "Used" or "Ready", but changes color if banned */}
-                  {isUsed ? (
-                    <span
-                      className={`flex items-center gap-1.5 font-medium ${isBanned ? "text-red-900/40" : "text-zinc-400"}`}
-                    >
-                      <div
-                        className={`w-1.5 h-1.5 rounded-full ${isBanned ? "bg-red-400/50" : "bg-zinc-300"}`}
-                      ></div>{" "}
+                  {isRevoked ? (
+                    <span className="text-zinc-400">—</span>
+                  ) : isUsed ? (
+                    <span className="flex items-center gap-1.5 font-medium text-zinc-400">
+                      <div className="w-1.5 h-1.5 rounded-full bg-zinc-300"></div>{" "}
                       Used
                     </span>
                   ) : (
-                    <span
-                      className={`flex items-center gap-1.5 font-medium ${isBanned ? "text-red-900/40" : "text-green-600"}`}
-                    >
-                      <div
-                        className={`w-1.5 h-1.5 rounded-full ${isBanned ? "bg-red-400/50" : "bg-green-500 animate-pulse"}`}
-                      ></div>{" "}
+                    <span className="flex items-center gap-1.5 font-medium text-green-600">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>{" "}
                       Ready
                     </span>
                   )}
                 </td>
                 <td
-                  className={`p-4 italic text-xs ${isBanned ? "text-red-900/40" : "text-zinc-400"}`}
+                  className={`p-4 italic text-xs ${isRevoked ? "text-red-900/40" : "text-zinc-400"}`}
                 >
                   {isUsed && username ? (
                     <span
-                      className={`font-medium not-italic ${isBanned ? "text-red-900/40" : "text-black"}`}
+                      className={`font-medium not-italic ${isRevoked ? "text-red-900/40" : "text-black"}`}
                     >
                       @{username}
                     </span>
+                  ) : isRevoked ? (
+                    <span className="not-italic">—</span>
                   ) : (
                     note
                   )}

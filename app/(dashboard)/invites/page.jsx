@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Copy, Check, Trash2, Loader2, Search, Filter } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { applyFiltersAndSort } from "../../utils/sortUtils";
+import { DB } from "@/app/lib/schema_map";
 
 export default function InvitesTablePage() {
   const [tokens, setTokens] = useState([]);
@@ -12,9 +13,9 @@ export default function InvitesTablePage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [sortConfig, setSortConfig] = useState({
-    key: "created_at",
+    key: DB.TOKENS.CREATED_AT,
     direction: "desc",
-    filterKey: "is_used",
+    filterKey: DB.TOKENS.IS_USED,
     filterValue: "All",
   });
 
@@ -34,10 +35,10 @@ export default function InvitesTablePage() {
     }
 
     const { data, error } = await supabase
-      .from("invite_tokens")
+      .from(DB.TOKENS.TABLE)
       .select("*")
-      .eq("created_by", user.id)
-      .order("created_at", { ascending: false });
+      .eq(DB.TOKENS.CREATED_BY, user.id)
+      .order(DB.TOKENS.CREATED_AT, { ascending: false });
 
     if (!error) setTokens(data);
     setLoading(false);
@@ -52,11 +53,12 @@ export default function InvitesTablePage() {
 
     if (!confirm("Are you sure you want to delete this token?")) return;
     const { error } = await supabase
-      .from("invite_tokens")
+      .from(DB.TOKENS.TABLE)
       .delete()
-      .eq("id", id);
+      .eq(DB.TOKENS.ID, id);
+
     if (!error) {
-      setTokens(tokens.filter((t) => t.id !== id));
+      setTokens(tokens.filter((t) => t[DB.TOKENS.ID] !== id));
     }
   };
 
@@ -71,12 +73,16 @@ export default function InvitesTablePage() {
     if (searchQuery) {
       filtered = filtered.filter(
         (t) =>
-          (t.caption &&
-            t.caption.toLowerCase().includes(searchQuery.toLowerCase())) ||
-          (t.token_string &&
-            t.token_string.toLowerCase().includes(searchQuery.toLowerCase())) ||
-          (t.used_by_username &&
-            t.used_by_username
+          (t[DB.TOKENS.CAPTION] &&
+            t[DB.TOKENS.CAPTION]
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase())) ||
+          (t[DB.TOKENS.TOKEN_STRING] &&
+            t[DB.TOKENS.TOKEN_STRING]
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase())) ||
+          (t[DB.TOKENS.USED_BY_USER] &&
+            t[DB.TOKENS.USED_BY_USER]
               .toLowerCase()
               .includes(searchQuery.toLowerCase())),
       );
@@ -115,7 +121,7 @@ export default function InvitesTablePage() {
               onChange={(e) =>
                 setSortConfig({
                   ...sortConfig,
-                  filterKey: "is_used",
+                  filterKey: DB.TOKENS.IS_USED,
                   filterValue: e.target.value,
                 })
               }
@@ -131,7 +137,7 @@ export default function InvitesTablePage() {
             onChange={(e) =>
               setSortConfig({
                 ...sortConfig,
-                key: "created_at",
+                key: DB.TOKENS.CREATED_AT,
                 direction: e.target.value,
               })
             }
@@ -168,17 +174,18 @@ export default function InvitesTablePage() {
               </thead>
               <tbody className="divide-y divide-zinc-100 text-sm">
                 {displayedTokens.map((token) => {
-                  const isAdmin =
-                    token.token_type === "admin" || token.tokenType === "admin";
+                  const isAdmin = token[DB.TOKENS.TOKEN_TYPE] === "admin";
+                  const isRevoked = token[DB.TOKENS.IS_REVOKED];
+                  const isUsed = token[DB.TOKENS.IS_USED];
 
                   return (
                     <tr
-                      key={token.id}
+                      key={token[DB.TOKENS.ID]}
                       className="hover:bg-zinc-50 transition-colors"
                     >
                       <td className="p-4 px-6 font-medium text-black">
                         <div className="flex items-center gap-2">
-                          {token.caption || "—"}
+                          {token[DB.TOKENS.CAPTION] || "—"}
                           {isAdmin && (
                             <span className="bg-black text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest">
                               Admin
@@ -189,17 +196,20 @@ export default function InvitesTablePage() {
 
                       <td className="p-4">
                         <span className="font-mono text-xs bg-zinc-100 text-zinc-600 px-2 py-1 rounded border border-zinc-200">
-                          {token.token_string.replace("https://t.me/", "")}
+                          {token[DB.TOKENS.TOKEN_STRING].replace(
+                            "https://t.me/",
+                            "",
+                          )}
                         </span>
                       </td>
 
                       <td className="p-4">
-                        {token.is_revoked ? (
+                        {isRevoked ? (
                           <span className="inline-flex items-center gap-1.5 bg-red-100 text-red-700 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
                             <span className="w-1.5 h-1.5 bg-red-600 rounded-full"></span>
                             Revoked
                           </span>
-                        ) : token.is_used ? (
+                        ) : isUsed ? (
                           <span className="inline-flex items-center gap-1.5 bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
                             <span className="w-1.5 h-1.5 bg-green-600 rounded-full"></span>
                             Used
@@ -213,15 +223,17 @@ export default function InvitesTablePage() {
                       </td>
 
                       <td className="p-4 text-zinc-600">
-                        {token.is_used ? (
+                        {isUsed ? (
                           <div className="flex flex-col">
                             <span className="font-medium text-black">
-                              @{token.used_by_username || "Unknown"}
+                              @{token[DB.TOKENS.USED_BY_USER] || "Unknown"}
                             </span>
                             <span className="text-xs text-zinc-400">
-                              ID: {token.used_by_telegram_id}
+                              ID: {token[DB.TOKENS.USED_BY_ID]}
                             </span>
                           </div>
+                        ) : isRevoked ? (
+                          <span className="text-zinc-400">—</span>
                         ) : (
                           <span className="text-zinc-400 italic">
                             Pending...
@@ -230,33 +242,41 @@ export default function InvitesTablePage() {
                       </td>
 
                       <td className="p-4 text-zinc-500 whitespace-nowrap">
-                        {new Date(token.created_at).toLocaleString([], {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        })}
+                        {new Date(token[DB.TOKENS.CREATED_AT]).toLocaleString(
+                          [],
+                          {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          },
+                        )}
                       </td>
 
                       <td className="p-4 px-6">
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() =>
-                              copyToClipboard(token.token_string, token.id)
+                              copyToClipboard(
+                                token[DB.TOKENS.TOKEN_STRING],
+                                token[DB.TOKENS.ID],
+                              )
                             }
                             className="p-2 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-lg transition-all"
                             title="Copy Full Link"
                           >
-                            {copied === token.id ? (
+                            {copied === token[DB.TOKENS.ID] ? (
                               <Check size={16} className="text-black" />
                             ) : (
                               <Copy size={16} />
                             )}
                           </button>
 
-                          {/* ONLY show delete button if it is NOT an admin token */}
                           {!isAdmin && (
                             <button
                               onClick={() =>
-                                deleteToken(token.id, token.token_type)
+                                deleteToken(
+                                  token[DB.TOKENS.ID],
+                                  token[DB.TOKENS.TOKEN_TYPE],
+                                )
                               }
                               className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                               title="Delete Token"

@@ -14,6 +14,7 @@ import {
   LineChart,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { DB } from "@/app/lib/schema_map";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -24,7 +25,7 @@ export default function Sidebar() {
   });
   const [loadingStatus, setLoadingStatus] = useState(true);
 
-  // Fetch the live bot status from Supabase
+  // Fetch the live bot status from Supabase using Schema Map
   useEffect(() => {
     async function getLiveStatus() {
       try {
@@ -34,14 +35,14 @@ export default function Sidebar() {
 
         if (user) {
           const { data, error } = await supabase
-            .from("bot_settings")
-            .select("maintenance_mode")
-            .eq("created_by", user.id)
+            .from(DB.SETTINGS.TABLE)
+            .select(DB.SETTINGS.MAINTENANCE_MODE)
+            .eq(DB.SETTINGS.CREATED_BY, user.id)
             .maybeSingle();
 
           if (error) throw error;
 
-          if (data?.maintenance_mode) {
+          if (data?.[DB.SETTINGS.MAINTENANCE_MODE]) {
             setBotStatus({
               color: "bg-amber-500",
               pulse: "bg-amber-400",

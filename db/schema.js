@@ -10,21 +10,18 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 
-// ==========================================
-// 1. ACCESS & SECURITY
-// ==========================================
-
 export const inviteTokens = pgTable("invite_tokens", {
   id: uuid("id").defaultRandom().primaryKey(),
   tokenString: text("token_string").notNull().unique(),
-  createdBy: uuid("created_by"), // FK to auth.users handled by Supabase
+  createdBy: uuid("created_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   isUsed: boolean("is_used").default(false),
   usedByTelegramId: bigint("used_by_telegram_id", { mode: "number" }),
   tokenType: text("token_type").default("normal"),
   usedByUsername: text("used_by_username"),
   caption: text("caption").default("No caption"),
-  isRevoked: boolean("is_revoked").default(false), // Hard default prevents the ghost ban bug
+  isRevoked: boolean("is_revoked").default(false),
+  sentTo: text("sent_to"),
 });
 
 export const authorizedUsers = pgTable("authorized_users", {
@@ -32,29 +29,20 @@ export const authorizedUsers = pgTable("authorized_users", {
     .notNull()
     .unique()
     .primaryKey(),
-  tokenUsed: text("token_used").unique(), // FK to invite_tokens handled by Supabase
+  tokenUsed: text("token_used").unique(),
   activatedAt: timestamp("activated_at", { withTimezone: true }).defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  isBanned: boolean("is_banned").default(false), // Hard default prevents ghost ban
+  isBanned: boolean("is_banned").default(false),
 });
 
-// ==========================================
-// 2. BOT CONFIGURATION
-// ==========================================
-
 export const botSettings = pgTable("bot_settings", {
-  // Using mode 'number' for bigints so they don't break JS
-  id: bigint("id", { mode: "number" }).primaryKey(), // GENERATED ALWAYS AS IDENTITY in DB
-  createdBy: uuid("created_by").notNull().unique(), // FK to auth.users
+  id: bigint("id", { mode: "number" }).primaryKey(),
+  createdBy: uuid("created_by").notNull().unique(),
   strictKnowledgeMode: boolean("strict_knowledge_mode").default(true),
   temperature: doublePrecision("temperature").default(0.2),
   maintenanceMode: boolean("maintenance_mode").default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
-
-// ==========================================
-// 3. ANALYTICS & FILES
-// ==========================================
 
 export const chatAnalytics = pgTable("chat_analytics", {
   id: bigint("id", { mode: "number" }).primaryKey(),
@@ -62,7 +50,7 @@ export const chatAnalytics = pgTable("chat_analytics", {
   username: text("username"),
   userQuery: text("user_query"),
   botResponse: text("bot_response"),
-  adminId: uuid("admin_id"), // FK to auth.users
+  adminId: uuid("admin_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
@@ -72,17 +60,13 @@ export const ingestedFiles = pgTable("ingested_files", {
   uploadedByUsername: text("uploaded_by_username"),
   uploadedByTelegramId: bigint("uploaded_by_telegram_id", { mode: "number" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  createdBy: uuid("created_by"), // FK to auth.users
+  createdBy: uuid("created_by"),
   category: text("category").default("General"),
 });
 
-// ==========================================
-// 4. USER INTERACTION & PROGRESS
-// ==========================================
-
 export const userStates = pgTable("user_states", {
   id: bigint("id", { mode: "number" }).primaryKey(),
-  telegramId: bigint("telegram_id", { mode: "number" }).notNull().unique(), // FK to authorized_users
+  telegramId: bigint("telegram_id", { mode: "number" }).notNull().unique(),
   currentMode: text("current_mode").default("use"),
   currentStep: integer("current_step").default(0),
   metadata: jsonb("metadata").default({}),
@@ -91,7 +75,7 @@ export const userStates = pgTable("user_states", {
 
 export const onboardingLeads = pgTable("onboarding_leads", {
   id: bigint("id", { mode: "number" }).primaryKey(),
-  telegramId: bigint("telegram_id", { mode: "number" }), // FK to user_states
+  telegramId: bigint("telegram_id", { mode: "number" }),
   fullName: text("full_name"),
   phoneNumber: text("phone_number"),
   experienceLevel: text("experience_level"),
@@ -103,7 +87,7 @@ export const onboardingLeads = pgTable("onboarding_leads", {
 
 export const quizScores = pgTable("quiz_scores", {
   id: bigint("id", { mode: "number" }).primaryKey(),
-  telegramId: bigint("telegram_id", { mode: "number" }), // FK to authorized_users
+  telegramId: bigint("telegram_id", { mode: "number" }),
   category: text("category"),
   score: integer("score"),
   totalQuestions: integer("total_questions"),
@@ -112,7 +96,7 @@ export const quizScores = pgTable("quiz_scores", {
 
 export const testResults = pgTable("test_results", {
   id: bigint("id", { mode: "number" }).primaryKey(),
-  telegramId: bigint("telegram_id", { mode: "number" }), // FK to authorized_users
+  telegramId: bigint("telegram_id", { mode: "number" }),
   category: text("category"),
   qaData: jsonb("qa_data"),
   score: integer("score"),

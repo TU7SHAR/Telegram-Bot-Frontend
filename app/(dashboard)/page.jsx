@@ -10,11 +10,12 @@ import {
   Search,
   Mail,
   X,
-  RefreshCw, // <-- Added Refresh Icon
+  RefreshCw,
 } from "lucide-react";
-import { supabase } from "../lib/supabase";
+import { DB } from "@/app/lib/schema_map";
 import { applyFiltersAndSort } from "../utils/sortUtils";
 import { sendInviteLink } from "../lib/email";
+import { supabase } from "@/app/lib/supabase";
 
 export default function DashboardHome() {
   const [tokens, setTokens] = useState([]);
@@ -27,10 +28,11 @@ export default function DashboardHome() {
   const [modalEmail, setModalEmail] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // Initialize sort state using the DB Map[cite: 1]
   const [sortConfig, setSortConfig] = useState({
-    key: "created_at",
+    key: DB.TOKENS.CREATED_AT,
     direction: "desc",
-    filterKey: "is_used",
+    filterKey: DB.TOKENS.IS_USED,
     filterValue: "All",
   });
 
@@ -39,25 +41,12 @@ export default function DashboardHome() {
   }, []);
 
   const fetchTokens = async () => {
-    setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
     const { data, error } = await supabase
-      .from("invite_tokens")
+      .from(DB.TOKENS.TABLE)
       .select("*")
-      .eq("created_by", user.id)
-      .order("created_at", { ascending: false });
+      .order(DB.TOKENS.CREATED_AT, { ascending: false });
 
-    if (!error && data) {
-      setTokens(data);
-    }
+    if (data) setTokens(data);
     setLoading(false);
   };
 
@@ -84,16 +73,17 @@ export default function DashboardHome() {
 
       const finalCaption = modalCaption.trim() || "No caption";
 
-      // 1. Save to Supabase
+      // 1. Save to Supabase using Mapped Keys[cite: 1, 2]
       const { data, error } = await supabase
-        .from("invite_tokens")
+        .from(DB.TOKENS.TABLE)
         .insert([
           {
-            token_string: link,
-            created_by: user.id,
-            caption: finalCaption,
-            is_revoked: false,
-            is_used: false,
+            [DB.TOKENS.TOKEN_STRING]: link,
+            [DB.TOKENS.CREATED_BY]: user.id,
+            [DB.TOKENS.CAPTION]: finalCaption,
+            [DB.TOKENS.SENT_TO]: modalEmail.trim() || null, // Correctly saves email to new column[cite: 1, 2]
+            [DB.TOKENS.IS_REVOKED]: false,
+            [DB.TOKENS.IS_USED]: false,
           },
         ])
         .select();
@@ -103,7 +93,7 @@ export default function DashboardHome() {
       } else if (data && data.length > 0) {
         setTokens((prevTokens) => [data[0], ...prevTokens]);
 
-        // 2. If email is provided, trigger SMTP server action
+        // 2. Send email if provided
         if (modalEmail.trim()) {
           const emailRes = await sendInviteLink(
             modalEmail.trim(),
@@ -117,7 +107,6 @@ export default function DashboardHome() {
           }
         }
 
-        // Reset and close modal
         setModalCaption("");
         setModalEmail("");
         setIsModalOpen(false);
@@ -131,27 +120,15 @@ export default function DashboardHome() {
   };
 
   const refreshAdminToken = async (id) => {
-    if (
-      !confirm(
-        "Are you sure you want to refresh the Admin Key? This will invalidate your old link.",
-      )
-    )
-      return;
+    if (!confirm("Are you sure you want to refresh the Admin Key?")) return;
 
-    // Find the token string we are about to destroy
-    const tokenToRefresh = tokens.find((t) => t.id === id);
+    const tokenToRefresh = tokens.find((t) => t[DB.TOKENS.ID] === id);
 
-    // 1. UNLINK FOREIGN KEY: Free the token from the authorized_users table first
-    if (tokenToRefresh?.token_string) {
-      const { error: unlinkError } = await supabase
-        .from("authorized_users")
-        .update({ token_used: null })
-        .eq("token_used", tokenToRefresh.token_string);
-
-      if (unlinkError) {
-        console.error("Failed to unlink token:", unlinkError);
-        // We don't block execution here just in case the user was already deleted
-      }
+    if (tokenToRefresh?.[DB.TOKENS.TOKEN_STRING]) {
+      await supabase
+        .from(DB.USERS.TABLE)
+        .update({ [DB.USERS.TOKEN_USED]: null })
+        .eq(DB.USERS.TOKEN_USED, tokenToRefresh[DB.TOKENS.TOKEN_STRING]);
     }
 
     const newTokenString = `token_${Math.random().toString(36).substr(2, 9)}`;
@@ -161,26 +138,25 @@ export default function DashboardHome() {
     const botUsername = isLocalhost ? "devRagbot" : "DrishRag_Bot";
     const newLink = `https://t.me/${botUsername}?start=${newTokenString}`;
 
-    // 2. NOW IT IS SAFE TO UPDATE THE TOKEN
     const { data, error } = await supabase
-      .from("invite_tokens")
+      .from(DB.TOKENS.TABLE)
       .update({
-        token_string: newLink,
-        is_used: false,
-        used_by_telegram_id: null,
-        used_by_username: null,
+        [DB.TOKENS.TOKEN_STRING]: newLink,
+        [DB.TOKENS.IS_USED]: false,
+        [DB.TOKENS.USED_BY_ID]: null,
+        [DB.TOKENS.USED_BY_USER]: null,
+        [DB.TOKENS.IS_REVOKED]: false,
       })
-      .eq("id", id)
+      .eq(DB.TOKENS.ID, id)
       .select();
 
     if (error) {
       alert("Failed to refresh token: " + error.message);
     } else if (data && data.length > 0) {
-      // Update local state to reflect the shiny new token
-      setTokens((prev) => prev.map((t) => (t.id === id ? data[0] : t)));
-      alert(
-        "Admin Key successfully refreshed! You must click the new link in Telegram to authenticate.",
+      setTokens((prev) =>
+        prev.map((t) => (t[DB.TOKENS.ID] === id ? data[0] : t)),
       );
+      alert("Admin Key successfully refreshed!");
     }
   };
 
@@ -189,14 +165,14 @@ export default function DashboardHome() {
       alert("Action Denied: Admin tokens cannot be deleted.");
       return;
     }
-
     if (!confirm("Are you sure you want to delete this token?")) return;
+
     const { error } = await supabase
-      .from("invite_tokens")
+      .from(DB.TOKENS.TABLE)
       .delete()
-      .eq("id", id);
+      .eq(DB.TOKENS.ID, id);
     if (!error) {
-      setTokens((prev) => prev.filter((t) => t.id !== id));
+      setTokens((prev) => prev.filter((t) => t[DB.TOKENS.ID] !== id));
     }
   };
 
@@ -213,7 +189,7 @@ export default function DashboardHome() {
 
   return (
     <div className="max-w-5xl mx-auto relative">
-      {/* --- GENERATE MODAL POPUP --- */}
+      {/* Modal - Invitation Form[cite: 2] */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
@@ -233,7 +209,6 @@ export default function DashboardHome() {
                 <X size={20} />
               </button>
             </div>
-
             <div className="p-6 space-y-5">
               <div>
                 <label className="block text-sm font-medium text-black mb-1.5">
@@ -241,17 +216,16 @@ export default function DashboardHome() {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. 'Marketing Team', 'John Doe'"
+                  placeholder="e.g. 'Marketing Team'"
                   value={modalCaption}
                   onChange={(e) => setModalCaption(e.target.value)}
                   className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-black outline-none transition-all text-sm"
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-black mb-1.5 flex items-center gap-2">
-                  <Mail size={14} className="text-zinc-400" />
-                  Send to Email (Optional)
+                  <Mail size={14} className="text-zinc-400" /> Send to Email
+                  (Optional)
                 </label>
                 <input
                   type="email"
@@ -262,7 +236,6 @@ export default function DashboardHome() {
                 />
               </div>
             </div>
-
             <div className="p-6 bg-zinc-50 border-t border-zinc-100 flex gap-3 justify-end">
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -292,7 +265,7 @@ export default function DashboardHome() {
         </div>
       )}
 
-      {/* --- MAIN PAGE CONTENT --- */}
+      {/* Header Area[cite: 2] */}
       <div className="flex flex-col gap-6 mb-10 border-b border-zinc-200 pb-6">
         <div className="flex justify-between items-end">
           <div>
@@ -307,18 +280,16 @@ export default function DashboardHome() {
             onClick={() => setIsModalOpen(true)}
             className="flex items-center gap-2 bg-black hover:bg-zinc-800 text-white px-6 py-3 rounded-xl font-medium transition-all shadow-sm whitespace-nowrap"
           >
-            <Plus size={20} />
-            Create New Link
+            <Plus size={20} /> Create New Link
           </button>
         </div>
-
         <div className="flex gap-3">
           <select
             className="border border-zinc-200 bg-white px-4 py-2 rounded-lg text-sm font-medium outline-none cursor-pointer"
             onChange={(e) =>
               setSortConfig({
                 ...sortConfig,
-                filterKey: "is_used",
+                filterKey: DB.TOKENS.IS_USED,
                 filterValue: e.target.value,
               })
             }
@@ -327,13 +298,12 @@ export default function DashboardHome() {
             <option value="Used">Used Tokens</option>
             <option value="Unused">Unused Tokens</option>
           </select>
-
           <select
             className="border border-zinc-200 bg-white px-4 py-2 rounded-lg text-sm font-medium outline-none cursor-pointer"
             onChange={(e) =>
               setSortConfig({
                 ...sortConfig,
-                key: "created_at",
+                key: DB.TOKENS.CREATED_AT,
                 direction: e.target.value,
               })
             }
@@ -344,6 +314,7 @@ export default function DashboardHome() {
         </div>
       </div>
 
+      {/* Main List Display[cite: 2] */}
       <div className="bg-white rounded-2xl border border-zinc-200 overflow-hidden shadow-sm">
         {loading ? (
           <div className="p-20 flex justify-center">
@@ -359,19 +330,24 @@ export default function DashboardHome() {
           <div className="divide-y divide-zinc-100">
             {displayedTokens.map((token) => {
               if (!token || typeof token !== "object") return null;
-
-              const isAdmin =
-                token.token_type === "admin" || token.tokenType === "admin";
+              const isAdmin = token[DB.TOKENS.TOKEN_TYPE] === "admin";
+              const sentToEmail = token[DB.TOKENS.SENT_TO]; // Retrieve from mapping[cite: 1]
 
               return (
                 <div
-                  key={token.id}
+                  key={token[DB.TOKENS.ID]}
                   className="p-5 flex items-center justify-between hover:bg-zinc-50 transition-colors group"
                 >
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-3">
                       <h3 className="font-semibold text-lg text-black flex items-center gap-2">
-                        {token.caption || "No caption"}
+                        {token[DB.TOKENS.CAPTION] || "No caption"}
+
+                        {/* REFINED EMAIL DISPLAY LOGIC[cite: 1, 2] */}
+                        <span className="text-sm text-zinc-400 font-normal italic">
+                          {sentToEmail ? `(${sentToEmail})` : "(Direct Link)"}
+                        </span>
+
                         {isAdmin && (
                           <span className="bg-black text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest">
                             Admin
@@ -379,15 +355,15 @@ export default function DashboardHome() {
                         )}
                       </h3>
 
-                      {token.is_revoked === true ? (
+                      {token[DB.TOKENS.IS_REVOKED] === true ? (
                         <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                           <span className="w-1.5 h-1.5 bg-red-600 rounded-full"></span>
                           Revoked
                         </span>
-                      ) : token.is_used ? (
+                      ) : token[DB.TOKENS.IS_USED] ? (
                         <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                           <span className="w-1.5 h-1.5 bg-green-600 rounded-full"></span>
-                          Used by @{token.used_by_username || "Unknown"}
+                          Used by @{token[DB.TOKENS.USED_BY_USER] || "Unknown"}
                         </span>
                       ) : (
                         <span className="bg-zinc-100 text-zinc-600 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
@@ -399,11 +375,16 @@ export default function DashboardHome() {
 
                     <div className="flex items-center gap-3">
                       <span className="font-mono text-sm font-medium text-zinc-500 bg-zinc-100 px-3 py-1 rounded-md">
-                        {token.token_string.replace("https://t.me/", "")}
+                        {token[DB.TOKENS.TOKEN_STRING].replace(
+                          "https://t.me/",
+                          "",
+                        )}
                       </span>
                       <p className="text-xs text-zinc-400 font-medium">
                         Created:{" "}
-                        {new Date(token.created_at).toLocaleDateString()}
+                        {new Date(
+                          token[DB.TOKENS.CREATED_AT],
+                        ).toLocaleDateString()}
                       </p>
                     </div>
                   </div>
@@ -411,22 +392,22 @@ export default function DashboardHome() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() =>
-                        copyToClipboard(token.token_string, token.id)
+                        copyToClipboard(
+                          token[DB.TOKENS.TOKEN_STRING],
+                          token[DB.TOKENS.ID],
+                        )
                       }
                       className="p-2.5 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-xl transition-all"
-                      title="Copy Link"
                     >
-                      {copied === token.id ? (
+                      {copied === token[DB.TOKENS.ID] ? (
                         <Check size={18} className="text-black" />
                       ) : (
                         <Copy size={18} />
                       )}
                     </button>
-
-                    {/* Show Refresh for Admins, Show Delete for Normals */}
                     {isAdmin ? (
                       <button
-                        onClick={() => refreshAdminToken(token.id)}
+                        onClick={() => refreshAdminToken(token[DB.TOKENS.ID])}
                         className="p-2.5 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
                         title="Refresh Admin Token"
                       >
@@ -434,7 +415,12 @@ export default function DashboardHome() {
                       </button>
                     ) : (
                       <button
-                        onClick={() => deleteToken(token.id, token.token_type)}
+                        onClick={() =>
+                          deleteToken(
+                            token[DB.TOKENS.ID],
+                            token[DB.TOKENS.TOKEN_TYPE],
+                          )
+                        }
                         className="p-2.5 text-zinc-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
                         title="Delete Token"
                       >

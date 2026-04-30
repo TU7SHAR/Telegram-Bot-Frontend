@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Trash2, Loader2, FileText, CheckSquare } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { applyFiltersAndSort } from "../utils/sortUtils";
+import { DB } from "@/app/lib/schema_map";
 
 export default function KnowledgeBaseTable() {
   const [files, setFiles] = useState([]);
@@ -13,13 +14,13 @@ export default function KnowledgeBaseTable() {
   // Selection State
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
-  const [isSelectMode, setIsSelectMode] = useState(false); // --- NEW: Tracks if checkboxes should be visible ---
+  const [isSelectMode, setIsSelectMode] = useState(false); // Tracks if checkboxes should be visible
 
-  // Sorting & Filtering State
+  // Sorting & Filtering State using DB Schema Map
   const [sortConfig, setSortConfig] = useState({
-    key: "created_at",
+    key: DB.FILES.CREATED_AT,
     direction: "desc",
-    filterKey: "category",
+    filterKey: DB.FILES.CATEGORY,
     filterValue: "All",
   });
 
@@ -39,10 +40,10 @@ export default function KnowledgeBaseTable() {
     }
 
     const { data, error } = await supabase
-      .from("ingested_files")
+      .from(DB.FILES.TABLE)
       .select("*")
-      .eq("created_by", user.id)
-      .order("created_at", { ascending: false });
+      .eq(DB.FILES.CREATED_BY, user.id)
+      .order(DB.FILES.CREATED_AT, { ascending: false });
 
     if (!error) setFiles(data);
     setLoading(false);
@@ -58,7 +59,7 @@ export default function KnowledgeBaseTable() {
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      setSelectedFiles(displayedFiles.map((file) => file.id));
+      setSelectedFiles(displayedFiles.map((file) => file[DB.FILES.ID]));
     } else {
       setSelectedFiles([]);
     }
@@ -83,12 +84,12 @@ export default function KnowledgeBaseTable() {
 
     try {
       const { error } = await supabase
-        .from("ingested_files")
+        .from(DB.FILES.TABLE)
         .delete()
-        .eq("id", id);
+        .eq(DB.FILES.ID, id);
 
       if (error) throw error;
-      setFiles((prevFiles) => prevFiles.filter((f) => f.id !== id));
+      setFiles((prevFiles) => prevFiles.filter((f) => f[DB.FILES.ID] !== id));
       setSelectedFiles((prev) => prev.filter((fileId) => fileId !== id));
     } catch (err) {
       console.error("Error deleting file:", err);
@@ -108,14 +109,14 @@ export default function KnowledgeBaseTable() {
 
     try {
       const { error } = await supabase
-        .from("ingested_files")
+        .from(DB.FILES.TABLE)
         .delete()
-        .in("id", selectedFiles);
+        .in(DB.FILES.ID, selectedFiles);
 
       if (error) throw error;
 
       setFiles((prevFiles) =>
-        prevFiles.filter((f) => !selectedFiles.includes(f.id)),
+        prevFiles.filter((f) => !selectedFiles.includes(f[DB.FILES.ID])),
       );
       setSelectedFiles([]);
       setIsSelectMode(false); // Turn off select mode after successful bulk delete
@@ -127,10 +128,10 @@ export default function KnowledgeBaseTable() {
     }
   };
 
-  // Get unique categories for the dropdown filter
+  // Get unique categories for the dropdown filter using DB Schema Map
   const uniqueCategories = [
     "All",
-    ...new Set(files.map((file) => file.category || "General")),
+    ...new Set(files.map((file) => file[DB.FILES.CATEGORY] || "General")),
   ];
 
   const displayedFiles = useMemo(() => {
@@ -159,7 +160,7 @@ export default function KnowledgeBaseTable() {
               onChange={(e) =>
                 setSortConfig({
                   ...sortConfig,
-                  filterKey: "category",
+                  filterKey: DB.FILES.CATEGORY,
                   filterValue: e.target.value,
                 })
               }
@@ -176,7 +177,7 @@ export default function KnowledgeBaseTable() {
               onChange={(e) =>
                 setSortConfig({
                   ...sortConfig,
-                  key: "created_at",
+                  key: DB.FILES.CREATED_AT,
                   direction: e.target.value,
                 })
               }
@@ -190,7 +191,7 @@ export default function KnowledgeBaseTable() {
               onChange={(e) =>
                 setSortConfig({
                   ...sortConfig,
-                  key: "filename",
+                  key: DB.FILES.FILENAME,
                   direction: e.target.value,
                 })
               }
@@ -200,7 +201,7 @@ export default function KnowledgeBaseTable() {
             </select>
           </div>
 
-          {/* --- NEW: Select Mode Button --- */}
+          {/* --- Select Mode Button --- */}
           {!loading && displayedFiles.length > 0 && (
             <button
               onClick={toggleSelectMode}
@@ -269,9 +270,9 @@ export default function KnowledgeBaseTable() {
           <div className="divide-y divide-zinc-100">
             {displayedFiles.map((file) => (
               <div
-                key={file.id}
+                key={file[DB.FILES.ID]}
                 className={`p-5 flex items-center justify-between transition-colors group ${
-                  selectedFiles.includes(file.id)
+                  selectedFiles.includes(file[DB.FILES.ID])
                     ? "bg-blue-50/30"
                     : "hover:bg-zinc-50"
                 }`}
@@ -282,32 +283,35 @@ export default function KnowledgeBaseTable() {
                     <input
                       type="checkbox"
                       className="w-4 h-4 rounded border-zinc-300 text-black cursor-pointer ml-1 transition-all"
-                      checked={selectedFiles.includes(file.id)}
-                      onChange={() => handleSelect(file.id)}
+                      checked={selectedFiles.includes(file[DB.FILES.ID])}
+                      onChange={() => handleSelect(file[DB.FILES.ID])}
                     />
                   )}
 
                   <div
-                    className={`p-3 rounded-xl transition-colors ${selectedFiles.includes(file.id) ? "bg-blue-100 text-blue-500" : "bg-zinc-100 text-zinc-400"}`}
+                    className={`p-3 rounded-xl transition-colors ${selectedFiles.includes(file[DB.FILES.ID]) ? "bg-blue-100 text-blue-500" : "bg-zinc-100 text-zinc-400"}`}
                   >
                     <FileText size={24} />
                   </div>
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-3">
                       <h3 className="font-semibold text-black">
-                        {file.filename}
+                        {file[DB.FILES.FILENAME]}
                       </h3>
                       <span className="bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wide">
-                        {file.category || "General"}
+                        {file[DB.FILES.CATEGORY] || "General"}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-zinc-500 font-medium">
                       <span>
-                        Uploaded by @{file.uploaded_by_username || "Unknown"}
+                        Uploaded by @
+                        {file[DB.FILES.UPLOADED_BY_USER] || "Unknown"}
                       </span>
                       <span>•</span>
                       <span>
-                        {new Date(file.created_at).toLocaleDateString()}
+                        {new Date(
+                          file[DB.FILES.CREATED_AT],
+                        ).toLocaleDateString()}
                       </span>
                     </div>
                   </div>
@@ -315,16 +319,18 @@ export default function KnowledgeBaseTable() {
 
                 {/* Individual Delete Button - Disabled during bulk delete */}
                 <button
-                  onClick={() => deleteFile(file.id, file.filename)}
-                  disabled={deletingId === file.id || isDeletingBulk}
+                  onClick={() =>
+                    deleteFile(file[DB.FILES.ID], file[DB.FILES.FILENAME])
+                  }
+                  disabled={deletingId === file[DB.FILES.ID] || isDeletingBulk}
                   className={`p-2.5 rounded-xl transition-all ${
-                    deletingId === file.id
+                    deletingId === file[DB.FILES.ID]
                       ? "text-red-500 bg-red-50 cursor-not-allowed"
                       : "text-zinc-300 hover:text-red-600 hover:bg-red-50"
                   }`}
                   title="Delete File"
                 >
-                  {deletingId === file.id ? (
+                  {deletingId === file[DB.FILES.ID] ? (
                     <Loader2 className="animate-spin" size={18} />
                   ) : (
                     <Trash2 size={18} />

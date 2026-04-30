@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
+import { DB } from "@/app/lib/schema_map";
 
 export default function AnalyticsPage() {
   const [results, setResults] = useState([]);
@@ -25,9 +26,9 @@ export default function AnalyticsPage() {
 
     // Fetch all test results, ordered by newest first
     const { data, error } = await supabase
-      .from("test_results")
+      .from(DB.TESTS.TABLE)
       .select("*")
-      .order("created_at", { ascending: false });
+      .order(DB.TESTS.CREATED_AT, { ascending: false });
 
     if (!error && data) {
       setResults(data);
@@ -69,10 +70,10 @@ export default function AnalyticsPage() {
         ) : (
           <div className="divide-y divide-zinc-100">
             {results.map((result) => (
-              <div key={result.id} className="flex flex-col">
+              <div key={result[DB.TESTS.ID]} className="flex flex-col">
                 {/* --- HEADER ROW (Always Visible) --- */}
                 <div
-                  onClick={() => toggleExpand(result.id)}
+                  onClick={() => toggleExpand(result[DB.TESTS.ID])}
                   className="p-5 flex items-center justify-between hover:bg-zinc-50 transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-4">
@@ -82,21 +83,26 @@ export default function AnalyticsPage() {
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-3">
                         <Link
-                          href={`/users/${result.telegram_id}`}
+                          href={`/users/${result[DB.TESTS.TELEGRAM_ID]}`}
                           onClick={(e) => e.stopPropagation()} // Prevents the accordion from expanding when clicking the link
                           className="font-semibold text-black flex items-center gap-2 hover:text-blue-600 hover:underline transition-colors"
                         >
                           <User size={16} className="text-zinc-400" />
-                          ID: {result.telegram_id}
+                          ID: {result[DB.TESTS.TELEGRAM_ID]}
                         </Link>
                         <span className="bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wide">
-                          {result.category}
+                          {result[DB.TESTS.CATEGORY]}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-zinc-500 font-medium">
                         <span>
-                          {new Date(result.created_at).toLocaleDateString()} at{" "}
-                          {new Date(result.created_at).toLocaleTimeString([], {
+                          {new Date(
+                            result[DB.TESTS.CREATED_AT],
+                          ).toLocaleDateString()}{" "}
+                          at{" "}
+                          {new Date(
+                            result[DB.TESTS.CREATED_AT],
+                          ).toLocaleTimeString([], {
                             hour: "2-digit",
                             minute: "2-digit",
                           })}
@@ -112,14 +118,17 @@ export default function AnalyticsPage() {
                       </span>
                       <span
                         className={`text-lg font-black ${
-                          result.score >= 2 ? "text-green-600" : "text-red-500"
+                          result[DB.TESTS.SCORE] >= 2
+                            ? "text-green-600"
+                            : "text-red-500"
                         }`}
                       >
-                        {result.score} / {result.total_questions}
+                        {result[DB.TESTS.SCORE]} /{" "}
+                        {result[DB.TESTS.TOTAL_QUESTIONS]}
                       </span>
                     </div>
                     <button className="text-zinc-400 group-hover:text-black transition-colors">
-                      {expandedId === result.id ? (
+                      {expandedId === result[DB.TESTS.ID] ? (
                         <ChevronUp size={20} />
                       ) : (
                         <ChevronDown size={20} />
@@ -129,14 +138,14 @@ export default function AnalyticsPage() {
                 </div>
 
                 {/* --- EXPANDED DETAILS SECTION --- */}
-                {expandedId === result.id && (
+                {expandedId === result[DB.TESTS.ID] && (
                   <div className="p-6 bg-zinc-50 border-t border-zinc-100 grid grid-cols-1 md:grid-cols-2 gap-8">
                     {/* Q&A Column */}
                     <div className="flex flex-col gap-4">
                       <h4 className="text-sm font-bold text-black uppercase tracking-wider border-b border-zinc-200 pb-2">
                         Questions & User Answers
                       </h4>
-                      {result.qa_data?.questions?.map((q, idx) => (
+                      {result[DB.TESTS.QA_DATA]?.questions?.map((q, idx) => (
                         <div
                           key={idx}
                           className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm"
@@ -149,7 +158,7 @@ export default function AnalyticsPage() {
                               <span className="font-bold text-blue-600 mr-2">
                                 Answer:
                               </span>
-                              {result.qa_data.user_answers[idx] ||
+                              {result[DB.TESTS.QA_DATA].user_answers[idx] ||
                                 "No answer provided."}
                             </p>
                           </div>
@@ -164,7 +173,9 @@ export default function AnalyticsPage() {
                       </h4>
                       <div className="bg-white p-5 rounded-xl border border-zinc-200 shadow-sm h-full">
                         <div className="prose prose-sm text-zinc-700 whitespace-pre-wrap">
-                          {result.remarks.replace(/SCORE:.*$/m, "").trim()}
+                          {result[DB.TESTS.REMARKS]
+                            .replace(/SCORE:.*$/m, "")
+                            .trim()}
                         </div>
                       </div>
                     </div>

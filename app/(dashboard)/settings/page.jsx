@@ -12,6 +12,7 @@ import {
   ScrollText,
 } from "lucide-react";
 import { supabase } from "@/app/lib/supabase";
+import { DB } from "@/app/lib/schema_map";
 
 export default function Settings() {
   const [isSaving, setIsSaving] = useState(false);
@@ -23,7 +24,7 @@ export default function Settings() {
     temperature: 0.2,
     verbosity: "Standard",
     strictKnowledge: true,
-    logHistory: true,
+    logHistory: true, // You might add a mapping for this later if you store it in DB!
     maintenanceMode: false,
   });
 
@@ -36,17 +37,17 @@ export default function Settings() {
       if (!user) return;
 
       const { data, error } = await supabase
-        .from("bot_settings")
+        .from(DB.SETTINGS.TABLE)
         .select("*")
-        .eq("created_by", user.id)
+        .eq(DB.SETTINGS.CREATED_BY, user.id)
         .maybeSingle();
 
       if (data && !error) {
         setSettings((prev) => ({
           ...prev,
-          temperature: data.temperature,
-          strictKnowledge: data.strict_knowledge_mode,
-          maintenanceMode: data.maintenance_mode,
+          temperature: data[DB.SETTINGS.TEMPERATURE],
+          strictKnowledge: data[DB.SETTINGS.STRICT_MODE],
+          maintenanceMode: data[DB.SETTINGS.MAINTENANCE_MODE],
         }));
       }
       setIsLoading(false);
@@ -66,15 +67,15 @@ export default function Settings() {
       // Logic: Strict Mode = 0.2 temperature, otherwise 0.8
       const finalTemp = settings.strictKnowledge ? 0.2 : 0.8;
 
-      const { error } = await supabase.from("bot_settings").upsert(
+      const { error } = await supabase.from(DB.SETTINGS.TABLE).upsert(
         {
-          created_by: user.id,
-          temperature: finalTemp,
-          strict_knowledge_mode: settings.strictKnowledge,
-          maintenance_mode: settings.maintenanceMode,
-          updated_at: new Date(),
+          [DB.SETTINGS.CREATED_BY]: user.id,
+          [DB.SETTINGS.TEMPERATURE]: finalTemp,
+          [DB.SETTINGS.STRICT_MODE]: settings.strictKnowledge,
+          [DB.SETTINGS.MAINTENANCE_MODE]: settings.maintenanceMode,
+          [DB.SETTINGS.UPDATED_AT]: new Date(),
         },
-        { onConflict: "created_by" },
+        { onConflict: DB.SETTINGS.CREATED_BY },
       );
 
       if (error) {
