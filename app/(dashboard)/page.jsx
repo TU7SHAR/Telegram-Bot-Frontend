@@ -435,5 +435,10 @@ export default function DashboardHome() {
         )}
       </div>
     </div>
+    {/* BotFactory Widget */}
+<Script id="botfactory-init" strategy="beforeInteractive">
+  {`window.BOTFACTORY_ID = "14";`}
+</Script>
+<Script src="https://chatbot-c53nl.ondigitalocean.app/static/js/embed.js" strategy="afterInteractive" />
   );
 }
