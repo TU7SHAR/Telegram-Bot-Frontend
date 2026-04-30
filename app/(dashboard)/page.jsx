@@ -16,7 +16,7 @@ import { DB } from "@/app/lib/schema_map";
 import { applyFiltersAndSort } from "../utils/sortUtils";
 import { sendInviteLink } from "../lib/email";
 import { supabase } from "@/app/lib/supabase";
-import Script from "next/script";
+
 
 export default function DashboardHome() {
   const [tokens, setTokens] = useState([]);
