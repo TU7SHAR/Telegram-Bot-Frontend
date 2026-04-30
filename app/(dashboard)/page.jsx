@@ -1,5 +1,5 @@
 "use client";
-
+import Script from 'next/script'   
 import { useState, useEffect, useMemo } from "react";
 import {
   Plus,
